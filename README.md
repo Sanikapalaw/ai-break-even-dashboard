@@ -138,6 +138,18 @@ These files are used in the Streamlit dashboard for real-time predictions.
 🔹 Screenshots
 
 Profit Scenario:
+## Profit Scenario
+
+![Profit 1](assets/profit1.png)
+![Profit 2](assets/profit2.png)
+![Profit 3](assets/profit3.png)
+
+## Loss Scenario
+
+![Loss 1](assets/loss1.png)
+![Loss 2](assets/loss2.png)
+![Loss 3](assets/loss3.png)
+![Loss 4](assets/loss4.png)
 
 <img width="2559" height="1088" alt="image" src="https://github.com/user-attachments/assets/4e822b31-c366-4407-a9c9-76ce819f60c8" />
 <img width="2558" height="840" alt="image" src="https://github.com/user-attachments/assets/e319131f-1968-4379-beba-a08de3a4e084" />

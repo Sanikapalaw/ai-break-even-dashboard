@@ -146,4 +146,4 @@ Enhance AI insights with actionable strategies for cost reduction and sales opti
 
 Streamlit App: https://ai-break-even-dashboard.streamlit.app/
 
-Linkldn Link: 
+Linkldn Link: https://lnkd.in/p/dWCwEZXP

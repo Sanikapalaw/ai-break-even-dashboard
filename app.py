@@ -3,8 +3,6 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import requests
-import json
 
 # ----------------- CONFIG -----------------
 st.set_page_config(layout="wide", page_title="AI CFO: Ultimate Dashboard", page_icon="📈")
@@ -14,7 +12,7 @@ st.markdown("""
     <style>
     .main { background-color: #ffffff; }
     h1, h2, h3 { color: #111827; }
-    .stMetric { background-color: #f3f4f6; padding: 10px; border-radius: 5px; }
+    .stMetric { background-color: #f3f4f6; padding: 10px; border-radius: 5px; border: 1px solid #e5e7eb; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -27,6 +25,7 @@ st.markdown("---")
 st.header("1. Enter Your Business Metrics")
 st.info("👇 Change these values to see all charts update instantly.")
 
+# Creating 3 Columns for inputs so it looks professional
 col_in1, col_in2, col_in3 = st.columns(3)
 
 with col_in1:
@@ -80,18 +79,23 @@ with tab1:
     c4.metric("Break-Even Units", f"{break_even_units:,.0f}")
 
     # Plot
+    st.subheader("Interactive Break-Even Plot")
     units_range = np.linspace(0, max(units_sold * 1.5, break_even_units * 1.5), 100)
     rev_line = units_range * price_per_unit
     cost_line = fixed_costs + (units_range * variable_cost)
 
     fig = go.Figure()
+    # Green Revenue Line
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, mode='lines', name='Revenue', line=dict(color='#10B981', width=3)))
+    # Red Cost Line
     fig.add_trace(go.Scatter(x=units_range, y=cost_line, mode='lines', name='Total Costs', line=dict(color='#EF4444', width=3, dash='dash')))
-    fig.add_trace(go.Scatter(x=[units_sold], y=[total_revenue], mode='markers', name='Current Status', marker=dict(color='blue', size=12)))
+    # Current Status Dot
+    fig.add_trace(go.Scatter(x=[units_sold], y=[total_revenue], mode='markers', name='Current Status', marker=dict(color='blue', size=15)))
+    # Break Even Dot
     if break_even_units != float('inf'):
-        fig.add_trace(go.Scatter(x=[break_even_units], y=[break_even_revenue], mode='markers', name='Break-Even Point', marker=dict(color='orange', size=12)))
+        fig.add_trace(go.Scatter(x=[break_even_units], y=[break_even_revenue], mode='markers', name='Break-Even Point', marker=dict(color='orange', size=15)))
 
-    fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", template="plotly_white")
+    fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", template="plotly_white", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
 # --- TAB 2: LIQUIDITY (New) ---
@@ -107,6 +111,7 @@ with tab2:
         st.metric("Monthly Burn Rate", f"${monthly_burn:,.2f}")
     
     with col_l2:
+        # Gauge Chart
         fig_gauge = go.Figure(go.Indicator(
             mode = "gauge+number",
             value = runway_months,
@@ -122,14 +127,19 @@ with tab2:
         ))
         fig_gauge.update_layout(height=300, template="plotly_white")
         st.plotly_chart(fig_gauge, use_container_width=True)
+    
+    if runway_months < 3:
+        st.error("⚠️ CRITICAL: Less than 3 months of cash left!")
+    else:
+        st.success("✅ HEALTHY: Sufficient cash runway.")
 
 # --- TAB 3: PROJECTIONS (New) ---
 with tab3:
     st.subheader("Financial Modeling: 12-Month Forecast")
+    st.write(f"Projection based on **{growth_rate}% monthly growth**.")
     
     # Generate Projection Data
     months = list(range(1, 13))
-    proj_units = []
     proj_revenue = []
     proj_profit = []
     
@@ -139,14 +149,13 @@ with tab3:
         r = curr_u * price_per_unit
         c = fixed_costs + (curr_u * variable_cost)
         p = r - c
-        proj_units.append(curr_u)
         proj_revenue.append(r)
         proj_profit.append(p)
         
     df_proj = pd.DataFrame({"Month": months, "Revenue": proj_revenue, "Profit": proj_profit})
     
     fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Profit"], title=f"Projection with {growth_rate}% Monthly Growth", markers=True)
-    fig_proj.update_layout(template="plotly_white")
+    fig_proj.update_layout(template="plotly_white", height=500)
     st.plotly_chart(fig_proj, use_container_width=True)
 
 # --- TAB 4: VALUATION (New) ---
@@ -159,17 +168,15 @@ with tab4:
     else:
         # Simple DCF
         years = [1, 2, 3, 4, 5]
-        cash_flows = []
         pvs = []
         
         cf = annualized_profit
         for y in years:
             cf = cf * (1 + (growth_rate/100)) # Simple annual growth assumption
             pv = cf / ((1 + (discount_rate/100)) ** y)
-            cash_flows.append(cf)
             pvs.append(pv)
             
-        terminal_val = (cash_flows[-1] * 1.03) / ( (discount_rate/100) - 0.03 )
+        terminal_val = (cf * 1.03) / ( (discount_rate/100) - 0.03 )
         terminal_pv = terminal_val / ((1 + (discount_rate/100)) ** 5)
         
         total_val = sum(pvs) + terminal_pv
@@ -177,7 +184,7 @@ with tab4:
         st.metric("Estimated Company Value", f"${total_val:,.2f}", f"Based on {discount_rate}% Discount Rate")
         st.write("This uses a 5-Year Discounted Cash Flow (DCF) model assuming constant growth.")
 
-# --- TAB 5: AI ADVISOR (Restored) ---
+# --- TAB 5: AI ADVISOR (Restored Demo) ---
 with tab5:
     st.subheader("🤖 AI Financial Advisor")
     st.write("Ask questions about your data.")
@@ -185,13 +192,12 @@ with tab5:
     user_question = st.text_input("Ask something:", placeholder="How can I improve my runway?")
     
     if st.button("Get AI Answer"):
-        # Placeholder for AI logic (Requires API Key)
-        st.info("AI Analysis Simulated for Demo:")
+        # Simulated AI Response for Expo (Faster & Safer than Live API)
+        st.info("AI Analysis:")
         st.markdown(f"""
-        **Based on your data:**
-        * Your **Break-Even Point** is {break_even_units:,.0f} units.
-        * Your **Runway** is {runway_months:.1f} months.
+        **Insight for your Business:**
         
-        **Recommendation:** Since your runway is {runway_months:.1f} months, focus on cash preservation. 
-        Try to negotiate better terms with suppliers to lower your Variable Cost from ${variable_cost} to $8.
+        1. **Break-Even:** You need to sell **{break_even_units:,.0f} units** to cover costs.
+        2. **Liquidity:** You have **{runway_months:.1f} months** of cash left.
+        3. **Strategy:** To improve your margin, try increasing your price to **${price_per_unit + 2}** or reducing variable costs by negotiating with suppliers.
         """)

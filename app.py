@@ -7,24 +7,6 @@ import numpy as np
 # --- Page Config ---
 st.set_page_config(page_title="AI CFO: Business Intelligence Dashboard", layout="wide", page_icon="koi")
 
-# --- Custom Styling for Expo ---
-st.markdown("""
-    <style>
-    .main {
-        background-color: #0e1117;
-    }
-    .stMetric {
-        background-color: #1f2937;
-        padding: 15px;
-        border-radius: 10px;
-        border: 1px solid #374151;
-    }
-    h1, h2, h3 {
-        color: #f3f4f6;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
 # --- Title ---
 st.title("AI CFO: The Roadmap to Profitability 🚀")
 st.markdown("### A Live Financial Intelligence System for Startups")
@@ -81,6 +63,7 @@ with tab1:
     cost_line = fixed_cost + (units_range * var_cost)
 
     fig = go.Figure()
+    # Green for Revenue, Red for Costs
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, mode='lines', name='Revenue', line=dict(color='#10B981', width=3)))
     fig.add_trace(go.Scatter(x=units_range, y=cost_line, mode='lines', name='Total Costs', line=dict(color='#EF4444', width=3, dash='dash')))
     
@@ -89,7 +72,8 @@ with tab1:
     # Add Break-even marker
     fig.add_trace(go.Scatter(x=[break_even_units], y=[break_even_revenue], mode='markers', name='Break-Even Point', marker=dict(color='orange', size=12)))
 
-    fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", template="plotly_dark")
+    # CHANGED TO WHITE TEMPLATE
+    fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
 
 # --- TAB 2: LIQUIDITY ANALYSIS (New) ---
@@ -123,10 +107,11 @@ with tab2:
                 'bar': {'color': "#3B82F6"},
                 'steps': [
                     {'range': [0, 3], 'color': "#EF4444"},
-                    {'range': [3, 6], 'color': "yellow"},
+                    {'range': [3, 6], 'color': "gold"},
                     {'range': [6, 12], 'color': "#10B981"}],
             }
         ))
+        # REMOVED DARK BACKGROUND
         fig_gauge.update_layout(height=300, margin=dict(l=10, r=10, t=50, b=10))
         st.plotly_chart(fig_gauge, use_container_width=True)
     
@@ -171,10 +156,10 @@ with tab3:
         "Net Profit": proj_profit
     })
 
-    # Plot
+    # Plot - CHANGED TO WHITE TEMPLATE
     fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Total Cost", "Net Profit"], 
                        title="12-Month Financial Trajectory", markers=True)
-    fig_proj.update_layout(template="plotly_dark", hovermode="x unified")
+    fig_proj.update_layout(template="plotly_white", hovermode="x unified")
     st.plotly_chart(fig_proj, use_container_width=True)
 
     st.info("💡 Note how the 'Net Profit' gap widens over time due to Economies of Scale (Fixed costs stay flat while revenue grows).")

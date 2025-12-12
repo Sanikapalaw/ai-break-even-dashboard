@@ -1,142 +1,244 @@
 import streamlit as st
-import numpy as np
+import pandas as pd
+import plotly.express as px
 import plotly.graph_objects as go
-import requests
-import json
+import numpy as np
 
-# ----------------- CONFIG -----------------
-# Set the page configuration for a wide layout and a title.
-st.set_page_config(layout="wide", page_title="Break-Even Dashboard", page_icon="📈")
+# --- Page Config ---
+st.set_page_config(page_title="AI CFO: Business Intelligence Dashboard", layout="wide", page_icon="koi")
 
-# ----------------- TITLE AND DESCRIPTION -----------------
-st.title("📈 The AI Roadmap to Profitability")
-st.markdown("### A Live Break-Even Analysis Dashboard")
-st.markdown("This tool helps you visualize your business's financial performance. Enter your metrics below to calculate your break-even point and see your live profit or loss status.")
-st.markdown("---")
+# --- Custom Styling for Expo ---
+st.markdown("""
+    <style>
+    .main {
+        background-color: #0e1117;
+    }
+    .stMetric {
+        background-color: #1f2937;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #374151;
+    }
+    h1, h2, h3 {
+        color: #f3f4f6;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# ----------------- 1. INPUT SECTION -----------------
-st.header("1. Enter Your Business Metrics")
-col1, col2 = st.columns(2)
+# --- Title ---
+st.title("AI CFO: The Roadmap to Profitability 🚀")
+st.markdown("### A Live Financial Intelligence System for Startups")
 
-with col1:
-    st.subheader("Cost and Pricing")
-    fixed_costs = st.number_input("Fixed Costs ($)", min_value=0.0, value=25000.0, format="%.2f")
-    variable_cost_per_unit = st.number_input("Variable Cost per Unit ($)", min_value=0.01, value=10.0, format="%.2f")
-    price_per_unit = st.number_input("Price per Unit ($)", min_value=0.01, value=20.0, format="%.2f")
+# --- SIDEBAR: ALL INPUTS ---
+st.sidebar.header("1. Business Metrics")
+fixed_cost = st.sidebar.number_input("Fixed Costs ($/month)", value=25000.0, step=1000.0)
+var_cost = st.sidebar.number_input("Variable Cost per Unit ($)", value=10.0, step=1.0)
+price_per_unit = st.sidebar.number_input("Selling Price per Unit ($)", value=20.0, step=1.0)
+units_sold = st.sidebar.number_input("Projected Units Sold", value=4000, step=100)
 
-with col2:
-    st.subheader("Sales and Operations")
-    units_sold = st.number_input("Units Sold", min_value=0, value=4000)
-    marketing_spend = st.number_input("Marketing Spend ($)", min_value=0.0, value=1000.0, format="%.2f")
-    employee_count = st.number_input("Employee Count", min_value=1, value=15)
+st.sidebar.markdown("---")
+st.sidebar.header("2. Financial Conditions")
+current_cash = st.sidebar.number_input("Current Cash on Hand ($)", value=50000.0, step=5000.0, help="For Liquidity Analysis")
+growth_rate = st.sidebar.slider("Expected Monthly Growth (%)", 0, 20, 5, help="For Projections")
+discount_rate = st.sidebar.slider("Risk/Discount Rate (%)", 5, 20, 10, help="For DCF Valuation")
 
-# ----------------- 2. CALCULATIONS -----------------
+# --- CORE CALCULATIONS ---
 total_revenue = units_sold * price_per_unit
-total_costs = fixed_costs + (variable_cost_per_unit * units_sold)
-total_profit_or_loss = total_revenue - total_costs
+total_variable_cost = units_sold * var_cost
+total_cost = fixed_cost + total_variable_cost
+net_profit = total_revenue - total_cost
 
-# Determine status for the metric delta color
-if total_profit_or_loss > 0:
-    status = "Profit"
-    status_color = "normal"
-elif total_profit_or_loss < 0:
-    status = "Loss"
-    status_color = "inverse"
-else:
-    status = "Break-Even"
-    status_color = "off"
-
-# ----------------- 3. FINANCIAL SNAPSHOT -----------------
-st.markdown("---")
-st.header("2. Your Financial Snapshot")
-col_res1, col_res2, col_res3 = st.columns(3)
-with col_res1:
-    st.metric("Total Revenue", f"${total_revenue:,.2f}")
-with col_res2:
-    st.metric("Total Costs", f"${total_costs:,.2f}")
-with col_res3:
-    st.metric("Total Profit or Loss", f"${total_profit_or_loss:,.2f}", delta=status, delta_color=status_color)
-
-# ----------------- 4. INTERACTIVE BREAK-EVEN PLOT -----------------
-st.markdown("---")
-st.header("3. Interactive Break-Even Plot")
-
-# Generate data points for the plot
-units_range = np.arange(0, units_sold * 2 + 100, 100)
-revenue_points = units_range * price_per_unit
-cost_points = fixed_costs + (units_range * variable_cost_per_unit)
-
-# Create the Plotly figure
-fig = go.Figure()
-fig.add_trace(go.Scatter(x=units_range, y=revenue_points, mode="lines", name="Total Revenue", line=dict(color="green", width=3)))
-fig.add_trace(go.Scatter(x=units_range, y=cost_points, mode="lines", name="Total Costs", line=dict(color="red", width=3, dash="dash")))
-
-# Add a marker for the current status
-fig.add_trace(go.Scatter(x=[units_sold], y=[total_revenue], mode="markers", name="Current Status", marker=dict(color="blue", size=12),
-                          hovertext=f"Units: {units_sold}<br>Revenue: ${total_revenue:,.2f}<br>Profit/Loss: ${total_profit_or_loss:,.2f}"))
-
-# Calculate and plot the break-even point if it exists
-break_even_units = None
-break_even_revenue = None
-if price_per_unit > variable_cost_per_unit:
-    break_even_units = fixed_costs / (price_per_unit - variable_cost_per_unit)
+# Break Even Calculation
+if (price_per_unit - var_cost) > 0:
+    break_even_units = fixed_cost / (price_per_unit - var_cost)
     break_even_revenue = break_even_units * price_per_unit
-    fig.add_trace(go.Scatter(x=[break_even_units], y=[break_even_revenue], mode="markers",
-                             name="Break-Even Point", marker=dict(color="orange", size=12),
-                             hovertext=f"Break-Even Units: {break_even_units:,.2f}<br>Revenue: ${break_even_revenue:,.2f}"))
+else:
+    break_even_units = float('inf')
+    break_even_revenue = float('inf')
 
-# Update plot layout
-fig.update_layout(title="Break-Even Analysis", xaxis_title="Units Sold", yaxis_title="Total Costs and Revenue ($)", template="plotly_white")
-st.plotly_chart(fig, use_container_width=True)
+# --- TABS FOR THE EXPO PRESENTATION ---
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Break-Even Analysis", "💧 Liquidity & Runway", "📈 Future Modeling", "💰 DCF Valuation"])
 
-# ----------------- 5. AI INSIGHTS -----------------
-st.markdown("---")
-st.header("4. AI-Powered Break-Even Insights")
-st.markdown("I am your financial advisor. I will analyze your business snapshot and break-even data and provide insights about profitability, risks, and strategies to improve your margins.")
-
-user_question = st.text_input("💬 Ask your financial advisor something specific (optional):", placeholder="E.g., How can I cross the break-even point?")
-
-# Function to securely get AI insights from the Gemini API
-def get_ai_insights(query):
-    # This securely retrieves your API key from Streamlit Cloud secrets
-    api_key = st.secrets["GEMINI_API_KEY"] 
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key={api_key}"
+# --- TAB 1: EXISTING BREAK-EVEN (Refined) ---
+with tab1:
+    st.header("Snapshot: Current Performance")
     
-    payload = {"contents": [{"parts": [{"text": query}]}]}
-    try:
-        response = requests.post(api_url, headers={"Content-Type": "application/json"}, data=json.dumps(payload))
-        if response.status_code == 200:
-            result = response.json()
-            # Extract the generated text from the API response
-            return result["candidates"][0]["content"]["parts"][0]["text"]
-        else:
-            return f"Error: {response.status_code} - {response.text}"
-    except Exception as e:
-        return f"Exception: {str(e)}"
+    # KPIs
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Total Revenue", f"${total_revenue:,.2f}")
+    col2.metric("Total Costs", f"${total_cost:,.2f}")
+    
+    profit_color = "normal" if net_profit >= 0 else "inverse"
+    col3.metric("Net Profit/Loss", f"${net_profit:,.2f}", delta_color=profit_color)
+    col4.metric("Break-Even Units", f"{break_even_units:,.0f} Units")
 
-if st.button("Get AI Insights"):
-    with st.spinner("Analyzing your break-even data..."):
-        # Construct the detailed prompt with business context
-        business_context = f"""
-Business Financial Snapshot:
-- Fixed Costs: ${fixed_costs:,.2f}
-- Variable Cost per Unit: ${variable_cost_per_unit:,.2f}
-- Price per Unit: ${price_per_unit:,.2f}
-- Units Sold: {units_sold}
-- Total Revenue: ${total_revenue:,.2f}
-- Total Costs: ${total_costs:,.2f}
-- Profit/Loss: ${total_profit_or_loss:,.2f}
-"""
-        if break_even_units:
-            business_context += f"- Break-Even Units: {break_even_units:,.2f}\n"
-            business_context += f"- Break-Even Revenue: ${break_even_revenue:,.2f}\n"
+    # Chart
+    st.subheader("Interactive Break-Even Plot")
+    
+    # Generate data for the plot
+    units_range = np.linspace(0, max(units_sold * 1.5, break_even_units * 1.5), 100)
+    rev_line = units_range * price_per_unit
+    cost_line = fixed_cost + (units_range * var_cost)
 
-        final_prompt = business_context
-        # Append user's specific question if provided
-        if user_question.strip():
-            final_prompt += f"\n\nUser Question: {user_question}"
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=units_range, y=rev_line, mode='lines', name='Revenue', line=dict(color='#10B981', width=3)))
+    fig.add_trace(go.Scatter(x=units_range, y=cost_line, mode='lines', name='Total Costs', line=dict(color='#EF4444', width=3, dash='dash')))
+    
+    # Add current position marker
+    fig.add_trace(go.Scatter(x=[units_sold], y=[total_revenue], mode='markers', name='Current Status', marker=dict(color='blue', size=12)))
+    # Add Break-even marker
+    fig.add_trace(go.Scatter(x=[break_even_units], y=[break_even_revenue], mode='markers', name='Break-Even Point', marker=dict(color='orange', size=12)))
 
-        insights = get_ai_insights(final_prompt)
+    fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", template="plotly_dark")
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- TAB 2: LIQUIDITY ANALYSIS (New) ---
+with tab2:
+    st.header("Liquidity: Survival Analysis")
+    st.write("This module analyzes if the business has enough cash to survive without sales.")
+    
+    # Calculate Runway
+    monthly_burn = fixed_cost # Assuming fixed cost is what you MUST pay
+    if monthly_burn > 0:
+        runway_months = current_cash / monthly_burn
+    else:
+        runway_months = 0
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("Cash on Hand", f"${current_cash:,.2f}")
+        st.metric("Monthly Burn Rate (Fixed)", f"${monthly_burn:,.2f}")
+    
+    with c2:
+        # Visualizing Runway
+        st.subheader(f"Runway: {runway_months:.1f} Months")
         
-    st.subheader("AI Insights")
-    st.write(insights)
+        # Gauge Chart for Runway
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = runway_months,
+            title = {'text': "Months of Survival (Zero Sales)"},
+            gauge = {
+                'axis': {'range': [0, 12]},
+                'bar': {'color': "#3B82F6"},
+                'steps': [
+                    {'range': [0, 3], 'color': "#EF4444"},
+                    {'range': [3, 6], 'color': "yellow"},
+                    {'range': [6, 12], 'color': "#10B981"}],
+            }
+        ))
+        fig_gauge.update_layout(height=300, margin=dict(l=10, r=10, t=50, b=10))
+        st.plotly_chart(fig_gauge, use_container_width=True)
+    
+    if runway_months < 3:
+        st.error("⚠️ CRITICAL WARNING: Low Runway. Immediate capital injection or cost cutting required.")
+    else:
+        st.success("✅ HEALTHY: Business has sufficient liquidity for the short term.")
+
+# --- TAB 3: FINANCIAL MODELING (New) ---
+with tab3:
+    st.header("Financial Modeling: 12-Month Projection")
+    st.write(f"Projection based on a **{growth_rate}% monthly growth rate** in sales volume.")
+
+    # Create Dynamic Data
+    months = list(range(1, 13))
+    proj_units = []
+    proj_revenue = []
+    proj_cost = []
+    proj_profit = []
+
+    current_units = units_sold
+    
+    for m in months:
+        # Grow units
+        current_units = current_units * (1 + (growth_rate/100))
+        
+        # Calculate financials
+        rev = current_units * price_per_unit
+        cost = fixed_cost + (current_units * var_cost)
+        profit = rev - cost
+        
+        proj_units.append(current_units)
+        proj_revenue.append(rev)
+        proj_cost.append(cost)
+        proj_profit.append(profit)
+
+    # Create DataFrame for plotting
+    df_proj = pd.DataFrame({
+        "Month": months,
+        "Revenue": proj_revenue,
+        "Total Cost": proj_cost,
+        "Net Profit": proj_profit
+    })
+
+    # Plot
+    fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Total Cost", "Net Profit"], 
+                       title="12-Month Financial Trajectory", markers=True)
+    fig_proj.update_layout(template="plotly_dark", hovermode="x unified")
+    st.plotly_chart(fig_proj, use_container_width=True)
+
+    st.info("💡 Note how the 'Net Profit' gap widens over time due to Economies of Scale (Fixed costs stay flat while revenue grows).")
+
+# --- TAB 4: DCF MODEL (New) ---
+with tab4:
+    st.header("Valuation: Discounted Cash Flow (DCF)")
+    st.write("Estimating the company's value based on future cash flows.")
+
+    # DCF Logic
+    # We will use the 'Net Profit' from the projection as a proxy for Free Cash Flow for this simplified expo model
+    
+    # 1. Annualize the current profit (Simple projection)
+    annualized_profit = net_profit * 12 
+    
+    st.subheader(" Valuation Inputs")
+    col_d1, col_d2 = st.columns(2)
+    col_d1.metric("Current Annualized Profit", f"${annualized_profit:,.2f}")
+    col_d2.metric("Discount Rate (Risk)", f"{discount_rate}%")
+
+    # 2. Calculate DCF for 5 Years
+    future_cash_flows = []
+    discount_factors = []
+    present_values = []
+
+    years = [1, 2, 3, 4, 5]
+    
+    # Assumption: Year over Year growth matches the monthly growth inputs roughly (simplified for demo)
+    yearly_growth = growth_rate  
+
+    running_cash_flow = annualized_profit
+
+    for year in years:
+        running_cash_flow = running_cash_flow * (1 + (yearly_growth/100))
+        df = 1 / ((1 + (discount_rate/100)) ** year)
+        pv = running_cash_flow * df
+        
+        future_cash_flows.append(running_cash_flow)
+        discount_factors.append(df)
+        present_values.append(pv)
+
+    # Terminal Value (Value beyond year 5) - Simplified Gordon Growth
+    terminal_growth = 0.03 # 3% long term growth
+    terminal_value = (future_cash_flows[-1] * (1 + terminal_growth)) / ((discount_rate/100) - terminal_growth)
+    terminal_value_discounted = terminal_value / ((1 + (discount_rate/100)) ** 5)
+
+    total_valuation = sum(present_values) + terminal_value_discounted
+
+    st.markdown("---")
+    st.metric(label="💰 ESTIMATED COMPANY VALUATION", value=f"${total_valuation:,.2f}", 
+              delta="Based on 5-Year DCF Model")
+    
+    st.write("### Cash Flow Breakdown")
+    df_dcf = pd.DataFrame({
+        "Year": years,
+        "Projected Cash Flow": future_cash_flows,
+        "Present Value (Today's Money)": present_values
+    })
+    st.dataframe(df_dcf.style.format("${:,.2f}"))
+
+# --- DATASET VIEW (Kept from old project for reference) ---
+with st.expander("📂 View Source Data (BreakEvenDB.csv)"):
+    try:
+        df = pd.read_csv('BreakEvenDB.csv')
+        st.dataframe(df)
+    except:
+        st.warning("BreakEvenDB.csv not found. Using simulation mode.")

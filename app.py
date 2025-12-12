@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
+import google.generativeai as genai
 
 # ----------------- CONFIG -----------------
 st.set_page_config(layout="wide", page_title="AI CFO: Ultimate Dashboard", page_icon="📈")
@@ -21,11 +22,17 @@ st.title("📈 AI CFO: The Roadmap to Profitability")
 st.markdown("### Liquidity • Financial Modeling • Valuation • AI Insights")
 st.markdown("---")
 
+# ----------------- SIDEBAR: API KEY & SETTINGS -----------------
+with st.sidebar:
+    st.header("⚙️ Configuration")
+    gemini_api_key = st.text_input("Enter Gemini API Key", type="password", help="Get this from Google AI Studio")
+    st.info("💡 If you don't have a key, the AI Advisor tab will use a simulation.")
+
 # ----------------- 1. UNIVERSAL INPUTS (Center of Screen) -----------------
 st.header("1. Enter Your Business Metrics")
 st.info("👇 Change these values to see all charts update instantly.")
 
-# Creating 3 Columns for inputs so it looks professional
+# Creating 3 Columns for inputs
 col_in1, col_in2, col_in3 = st.columns(3)
 
 with col_in1:
@@ -47,8 +54,10 @@ with col_in3:
     discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10, help="Used for DCF Valuation")
 
 # ----------------- 2. CORE CALCULATIONS -----------------
+# We subtract Marketing Spend here to be accurate!
 total_revenue = units_sold * price_per_unit
-total_costs = fixed_costs + (variable_cost * units_sold)
+total_variable_cost = units_sold * variable_cost
+total_costs = fixed_costs + total_variable_cost + marketing_spend
 net_profit = total_revenue - total_costs
 
 # Break Even Logic
@@ -69,7 +78,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🤖 AI Advisor"
 ])
 
-# --- TAB 1: BREAK-EVEN (Original) ---
+# --- TAB 1: BREAK-EVEN ---
 with tab1:
     st.subheader("Snapshot: Current Performance")
     c1, c2, c3, c4 = st.columns(4)
@@ -78,31 +87,26 @@ with tab1:
     c3.metric("Net Profit", f"${net_profit:,.2f}", delta_color="normal" if net_profit>=0 else "inverse")
     c4.metric("Break-Even Units", f"{break_even_units:,.0f}")
 
-    # Plot
     st.subheader("Interactive Break-Even Plot")
     units_range = np.linspace(0, max(units_sold * 1.5, break_even_units * 1.5), 100)
     rev_line = units_range * price_per_unit
-    cost_line = fixed_costs + (units_range * variable_cost)
+    cost_line = fixed_costs + (units_range * variable_cost) + marketing_spend 
 
     fig = go.Figure()
-    # Green Revenue Line
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, mode='lines', name='Revenue', line=dict(color='#10B981', width=3)))
-    # Red Cost Line
     fig.add_trace(go.Scatter(x=units_range, y=cost_line, mode='lines', name='Total Costs', line=dict(color='#EF4444', width=3, dash='dash')))
-    # Current Status Dot
     fig.add_trace(go.Scatter(x=[units_sold], y=[total_revenue], mode='markers', name='Current Status', marker=dict(color='blue', size=15)))
-    # Break Even Dot
     if break_even_units != float('inf'):
         fig.add_trace(go.Scatter(x=[break_even_units], y=[break_even_revenue], mode='markers', name='Break-Even Point', marker=dict(color='orange', size=15)))
 
     fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", template="plotly_white", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: LIQUIDITY (New) ---
+# --- TAB 2: LIQUIDITY ---
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
-    monthly_burn = fixed_costs  # Conservative: Fixed costs are the minimum burn
+    monthly_burn = fixed_costs + marketing_spend  
     runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
     
     col_l1, col_l2 = st.columns(2)
@@ -111,7 +115,6 @@ with tab2:
         st.metric("Monthly Burn Rate", f"${monthly_burn:,.2f}")
     
     with col_l2:
-        # Gauge Chart
         fig_gauge = go.Figure(go.Indicator(
             mode = "gauge+number",
             value = runway_months,
@@ -127,18 +130,11 @@ with tab2:
         ))
         fig_gauge.update_layout(height=300, template="plotly_white")
         st.plotly_chart(fig_gauge, use_container_width=True)
-    
-    if runway_months < 3:
-        st.error("⚠️ CRITICAL: Less than 3 months of cash left!")
-    else:
-        st.success("✅ HEALTHY: Sufficient cash runway.")
 
-# --- TAB 3: PROJECTIONS (New) ---
+# --- TAB 3: PROJECTIONS ---
 with tab3:
     st.subheader("Financial Modeling: 12-Month Forecast")
-    st.write(f"Projection based on **{growth_rate}% monthly growth**.")
     
-    # Generate Projection Data
     months = list(range(1, 13))
     proj_revenue = []
     proj_profit = []
@@ -147,7 +143,7 @@ with tab3:
     for m in months:
         curr_u = curr_u * (1 + (growth_rate/100))
         r = curr_u * price_per_unit
-        c = fixed_costs + (curr_u * variable_cost)
+        c = fixed_costs + marketing_spend + (curr_u * variable_cost)
         p = r - c
         proj_revenue.append(r)
         proj_profit.append(p)
@@ -158,46 +154,69 @@ with tab3:
     fig_proj.update_layout(template="plotly_white", height=500)
     st.plotly_chart(fig_proj, use_container_width=True)
 
-# --- TAB 4: VALUATION (New) ---
+# --- TAB 4: VALUATION ---
 with tab4:
     st.subheader("Valuation: What is the business worth?")
     
     annualized_profit = net_profit * 12
     if annualized_profit <= 0:
-        st.error("Business is currently not profitable. DCF Valuation requires positive cash flow.")
+        st.warning("⚠️ Business is not profitable. Valuation models work best with positive cash flow.")
+        total_val = 0
     else:
-        # Simple DCF
         years = [1, 2, 3, 4, 5]
         pvs = []
-        
         cf = annualized_profit
         for y in years:
-            cf = cf * (1 + (growth_rate/100)) # Simple annual growth assumption
+            cf = cf * (1 + (growth_rate/100))
             pv = cf / ((1 + (discount_rate/100)) ** y)
             pvs.append(pv)
             
         terminal_val = (cf * 1.03) / ( (discount_rate/100) - 0.03 )
         terminal_pv = terminal_val / ((1 + (discount_rate/100)) ** 5)
-        
         total_val = sum(pvs) + terminal_pv
         
-        st.metric("Estimated Company Value", f"${total_val:,.2f}", f"Based on {discount_rate}% Discount Rate")
-        st.write("This uses a 5-Year Discounted Cash Flow (DCF) model assuming constant growth.")
+        st.metric("Estimated Company Value (DCF)", f"${total_val:,.2f}")
 
-# --- TAB 5: AI ADVISOR (Restored Demo) ---
+# --- TAB 5: AI ADVISOR (REAL GEMINI INTEGRATION) ---
 with tab5:
-    st.subheader("🤖 AI Financial Advisor")
-    st.write("Ask questions about your data.")
+    st.subheader("🤖 AI Financial Advisor (Powered by Gemini)")
+    st.write("Ask the AI about your financial health, risks, or strategy.")
     
-    user_question = st.text_input("Ask something:", placeholder="How can I improve my runway?")
+    user_question = st.text_input("Ask something:", placeholder="How can I double my profit?")
     
-    if st.button("Get AI Answer"):
-        # Simulated AI Response for Expo (Faster & Safer than Live API)
-        st.info("AI Analysis:")
-        st.markdown(f"""
-        **Insight for your Business:**
-        
-        1. **Break-Even:** You need to sell **{break_even_units:,.0f} units** to cover costs.
-        2. **Liquidity:** You have **{runway_months:.1f} months** of cash left.
-        3. **Strategy:** To improve your margin, try increasing your price to **${price_per_unit + 2}** or reducing variable costs by negotiating with suppliers.
-        """)
+    if st.button("Get AI Analysis"):
+        if not gemini_api_key:
+            st.warning("⚠️ Please enter your Gemini API Key in the Sidebar to use the live AI.")
+        else:
+            with st.spinner("Analyzing your financial data..."):
+                try:
+                    # 1. Configure Gemini
+                    genai.configure(api_key=gemini_api_key)
+                    model = genai.GenerativeModel('gemini-pro')
+                    
+                    # 2. Build the Context for the AI
+                    context_prompt = f"""
+                    You are an expert CFO and Financial Advisor. Analyze the following business data:
+                    - Total Revenue: ${total_revenue:,.2f}
+                    - Total Costs: ${total_costs:,.2f}
+                    - Net Profit: ${net_profit:,.2f}
+                    - Break-Even Point: {break_even_units:,.0f} units (Current sales: {units_sold})
+                    - Cash on Hand: ${current_cash:,.2f}
+                    - Monthly Burn Rate: ${monthly_burn:,.2f}
+                    - Runway: {runway_months:.1f} months
+                    - Employee Count: {employee_count}
+                    
+                    User Question: "{user_question}"
+                    
+                    Provide a concise, strategic answer. Use bullet points. If the runway is low, warn them.
+                    """
+                    
+                    # 3. Call the API
+                    response = model.generate_content(context_prompt)
+                    
+                    # 4. Display Result
+                    st.success("Analysis Complete")
+                    st.markdown(response.text)
+                    
+                except Exception as e:
+                    st.error(f"Error connecting to Gemini: {e}")

@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-import google.generativeai as genai
+import requests
+import json
 
 # ----------------- CONFIG -----------------
 st.set_page_config(layout="wide", page_title="AI CFO: Ultimate Dashboard", page_icon="📈")
@@ -22,17 +23,22 @@ st.title("📈 AI CFO: The Roadmap to Profitability")
 st.markdown("### Liquidity • Financial Modeling • Valuation • AI Insights")
 st.markdown("---")
 
-# ----------------- SIDEBAR: API KEY & SETTINGS -----------------
-with st.sidebar:
-    st.header("⚙️ Configuration")
-    gemini_api_key = st.text_input("Enter Gemini API Key", type="password", help="Get this from Google AI Studio")
-    st.info("💡 If you don't have a key, the AI Advisor tab will use a simulation.")
+# ----------------- API KEY HANDLING (Your Original Method) -----------------
+# Try to get key from secrets first (Best for Cloud), then Sidebar (Best for Local/Expo)
+try:
+    api_key = st.secrets["GEMINI_API_KEY"]
+except:
+    api_key = ""
 
-# ----------------- 1. UNIVERSAL INPUTS (Center of Screen) -----------------
+if not api_key:
+    with st.sidebar:
+        st.warning("⚠️ API Key not found in secrets.")
+        api_key = st.text_input("Enter Gemini API Key", type="password")
+
+# ----------------- 1. UNIVERSAL INPUTS -----------------
 st.header("1. Enter Your Business Metrics")
 st.info("👇 Change these values to see all charts update instantly.")
 
-# Creating 3 Columns for inputs
 col_in1, col_in2, col_in3 = st.columns(3)
 
 with col_in1:
@@ -44,6 +50,7 @@ with col_in1:
 with col_in2:
     st.subheader("📦 Sales & Operations")
     units_sold = st.number_input("Current Units Sold", min_value=0, value=4000, step=100)
+    # Marketing spend is now included in total costs!
     marketing_spend = st.number_input("Marketing Spend ($)", min_value=0.0, value=1000.0, step=100.0)
     employee_count = st.number_input("Employee Count", min_value=1, value=15)
 
@@ -54,15 +61,15 @@ with col_in3:
     discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10, help="Used for DCF Valuation")
 
 # ----------------- 2. CORE CALCULATIONS -----------------
-# We subtract Marketing Spend here to be accurate!
 total_revenue = units_sold * price_per_unit
 total_variable_cost = units_sold * variable_cost
+# Logic Correction: Adding Marketing Spend to Total Costs
 total_costs = fixed_costs + total_variable_cost + marketing_spend
 net_profit = total_revenue - total_costs
 
 # Break Even Logic
 if (price_per_unit - variable_cost) > 0:
-    break_even_units = fixed_costs / (price_per_unit - variable_cost)
+    break_even_units = (fixed_costs + marketing_spend) / (price_per_unit - variable_cost)
     break_even_revenue = break_even_units * price_per_unit
 else:
     break_even_units = float('inf')
@@ -90,7 +97,7 @@ with tab1:
     st.subheader("Interactive Break-Even Plot")
     units_range = np.linspace(0, max(units_sold * 1.5, break_even_units * 1.5), 100)
     rev_line = units_range * price_per_unit
-    cost_line = fixed_costs + (units_range * variable_cost) + marketing_spend 
+    cost_line = fixed_costs + marketing_spend + (units_range * variable_cost)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, mode='lines', name='Revenue', line=dict(color='#10B981', width=3)))
@@ -106,7 +113,7 @@ with tab1:
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
-    monthly_burn = fixed_costs + marketing_spend  
+    monthly_burn = fixed_costs + marketing_spend
     runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
     
     col_l1, col_l2 = st.columns(2)
@@ -161,7 +168,6 @@ with tab4:
     annualized_profit = net_profit * 12
     if annualized_profit <= 0:
         st.warning("⚠️ Business is not profitable. Valuation models work best with positive cash flow.")
-        total_val = 0
     else:
         years = [1, 2, 3, 4, 5]
         pvs = []
@@ -177,7 +183,7 @@ with tab4:
         
         st.metric("Estimated Company Value (DCF)", f"${total_val:,.2f}")
 
-# --- TAB 5: AI ADVISOR (REAL GEMINI INTEGRATION) ---
+# --- TAB 5: AI ADVISOR (Requests Method) ---
 with tab5:
     st.subheader("🤖 AI Financial Advisor (Powered by Gemini)")
     st.write("Ask the AI about your financial health, risks, or strategy.")
@@ -185,38 +191,37 @@ with tab5:
     user_question = st.text_input("Ask something:", placeholder="How can I double my profit?")
     
     if st.button("Get AI Analysis"):
-        if not gemini_api_key:
-            st.warning("⚠️ Please enter your Gemini API Key in the Sidebar to use the live AI.")
+        if not api_key:
+            st.error("⚠️ API Key missing. Please check your secrets or enter it in the sidebar.")
         else:
             with st.spinner("Analyzing your financial data..."):
+                # Prepare Context
+                context_prompt = f"""
+                You are a CFO. Analyze this data:
+                - Revenue: ${total_revenue}
+                - Costs: ${total_costs}
+                - Profit: ${net_profit}
+                - Break-Even: {break_even_units} units
+                - Cash: ${current_cash}
+                - Runway: {runway_months} months
+                
+                User Question: "{user_question}"
+                Answer strategically in bullet points.
+                """
+                
+                # CALL API DIRECTLY (No library installation needed)
+                # Using standard Gemini 1.5 Flash model
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                headers = {"Content-Type": "application/json"}
+                data = {"contents": [{"parts": [{"text": context_prompt}]}]}
+                
                 try:
-                    # 1. Configure Gemini
-                    genai.configure(api_key=gemini_api_key)
-                    model = genai.GenerativeModel('gemini-pro')
-                    
-                    # 2. Build the Context for the AI
-                    context_prompt = f"""
-                    You are an expert CFO and Financial Advisor. Analyze the following business data:
-                    - Total Revenue: ${total_revenue:,.2f}
-                    - Total Costs: ${total_costs:,.2f}
-                    - Net Profit: ${net_profit:,.2f}
-                    - Break-Even Point: {break_even_units:,.0f} units (Current sales: {units_sold})
-                    - Cash on Hand: ${current_cash:,.2f}
-                    - Monthly Burn Rate: ${monthly_burn:,.2f}
-                    - Runway: {runway_months:.1f} months
-                    - Employee Count: {employee_count}
-                    
-                    User Question: "{user_question}"
-                    
-                    Provide a concise, strategic answer. Use bullet points. If the runway is low, warn them.
-                    """
-                    
-                    # 3. Call the API
-                    response = model.generate_content(context_prompt)
-                    
-                    # 4. Display Result
-                    st.success("Analysis Complete")
-                    st.markdown(response.text)
-                    
+                    response = requests.post(url, headers=headers, json=data)
+                    if response.status_code == 200:
+                        ai_text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                        st.success("Analysis Complete")
+                        st.markdown(ai_text)
+                    else:
+                        st.error(f"Error {response.status_code}: {response.text}")
                 except Exception as e:
-                    st.error(f"Error connecting to Gemini: {e}")
+                    st.error(f"Connection Error: {e}")

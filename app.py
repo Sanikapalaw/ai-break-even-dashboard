@@ -51,10 +51,11 @@ total_revenue = units_sold * price_per_unit
 total_variable_cost = units_sold * variable_cost
 total_costs = fixed_costs + total_variable_cost + marketing_spend
 net_profit = total_revenue - total_costs
+
 if (price_per_unit - variable_cost) > 0:
     break_even_units = (fixed_costs + marketing_spend) / (price_per_unit - variable_cost)
 else:
-    break_even_units = 0
+    break_even_units = float('inf')
 
 # ----------------- 3. TABS -----------------
 st.markdown("---")
@@ -62,37 +63,123 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Break-Even", "💧 Liquidity", "📈 Modeling", "💰 Valuation", "🤖 AI Advisor"
 ])
 
-# --- TAB 1, 2, 3, 4 (Standard Charts) ---
+# --- TAB 1: BREAK-EVEN (Chart Restored) ---
 with tab1:
-    st.metric("Net Profit", f"${net_profit:,.2f}")
-    st.metric("Break-Even Units", f"{break_even_units:,.0f}")
+    st.subheader("Snapshot: Current Performance")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Revenue", f"${total_revenue:,.2f}")
+    c2.metric("Total Costs", f"${total_costs:,.2f}")
+    c3.metric("Net Profit", f"${net_profit:,.2f}")
+    c4.metric("Break-Even Units", f"{break_even_units:,.0f}")
 
-with tab2:
-    monthly_burn = fixed_costs + marketing_spend
-    runway = current_cash / monthly_burn if monthly_burn > 0 else 0
-    if runway < 3: st.error(f"⚠️ Critical: {runway:.1f} Months Runway")
-    else: st.success(f"✅ Healthy: {runway:.1f} Months Runway")
+    st.subheader("Interactive Break-Even Plot")
     
-    fig = go.Figure(go.Indicator(mode="gauge+number", value=runway, title={'text':"Months"}))
+    # Handle infinite break-even for plotting
+    plot_max = units_sold * 2
+    if break_even_units != float('inf'):
+        plot_max = max(units_sold * 1.5, break_even_units * 1.5)
+    
+    units_range = np.linspace(0, plot_max, 100)
+    rev_line = units_range * price_per_unit
+    cost_line = fixed_costs + marketing_spend + (units_range * variable_cost)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=units_range, y=rev_line, mode='lines', name='Revenue', line=dict(color='#10B981', width=3)))
+    fig.add_trace(go.Scatter(x=units_range, y=cost_line, mode='lines', name='Total Costs', line=dict(color='#EF4444', width=3, dash='dash')))
+    fig.add_trace(go.Scatter(x=[units_sold], y=[total_revenue], mode='markers', name='Current Status', marker=dict(color='blue', size=15)))
+    
+    if break_even_units != float('inf'):
+        fig.add_trace(go.Scatter(x=[break_even_units], y=[break_even_units * price_per_unit], mode='markers', name='Break-Even Point', marker=dict(color='orange', size=15)))
+
+    fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
+# --- TAB 2: LIQUIDITY (Insights Restored) ---
+with tab2:
+    st.subheader("Liquidity: How long can we survive?")
+    
+    monthly_burn = fixed_costs + marketing_spend
+    runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
+    
+    # Insights Logic
+    if runway_months < 3:
+        st.error(f"⚠️ CRITICAL ALERT: Only {runway_months:.1f} months of cash remaining! Immediate action required.")
+    elif runway_months < 6:
+        st.warning(f"⚠️ CAUTION: {runway_months:.1f} months of runway. Plan fundraising soon.")
+    else:
+        st.success(f"✅ HEALTHY: {runway_months:.1f} months of runway available.")
+    
+    col_l1, col_l2 = st.columns(2)
+    with col_l1:
+        st.metric("Cash on Hand", f"${current_cash:,.2f}")
+        st.metric("Monthly Burn Rate", f"${monthly_burn:,.2f}")
+    
+    with col_l2:
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = runway_months,
+            title = {'text': "Runway (Months)"},
+            gauge = {
+                'axis': {'range': [0, 12]},
+                'bar': {'color': "black"},
+                'steps': [
+                    {'range': [0, 3], 'color': "#EF4444"},
+                    {'range': [3, 6], 'color': "gold"},
+                    {'range': [6, 12], 'color': "#10B981"}
+                ],
+            }
+        ))
+        st.plotly_chart(fig_gauge, use_container_width=True)
+
+# --- TAB 3: PROJECTIONS ---
 with tab3:
+    st.subheader("Financial Modeling: 12-Month Forecast")
     months = list(range(1, 13))
-    rev_proj = [total_revenue * ((1 + growth_rate/100)**m) for m in months]
-    fig_proj = px.line(x=months, y=rev_proj, title="12-Month Revenue Projection")
+    proj_revenue = []
+    proj_profit = []
+    curr_u = units_sold
+    
+    for m in months:
+        curr_u = curr_u * (1 + (growth_rate/100))
+        r = curr_u * price_per_unit
+        c = fixed_costs + marketing_spend + (curr_u * variable_cost)
+        p = r - c
+        proj_revenue.append(r)
+        proj_profit.append(p)
+        
+    df_proj = pd.DataFrame({"Month": months, "Revenue": proj_revenue, "Profit": proj_profit})
+    fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Profit"], title=f"Projection with {growth_rate}% Monthly Growth", markers=True)
     st.plotly_chart(fig_proj, use_container_width=True)
 
+# --- TAB 4: VALUATION ---
 with tab4:
-    annual_growth = ((1 + (growth_rate/100)) ** 12) - 1
-    pvs = []
-    cf = net_profit * 12
-    for y in range(1, 6):
-        cf = cf * (1 + annual_growth)
-        pvs.append(cf / ((1 + discount_rate/100)**y))
-    val = sum(pvs) + (cf * 1.03 / (discount_rate/100 - 0.03)) / ((1 + discount_rate/100)**5)
-    st.metric("Valuation (DCF)", f"${val:,.2f}")
+    st.subheader("Valuation: What is the business worth? (DCF Model)")
+    annualized_profit = net_profit * 12
+    annual_growth_rate = ((1 + (growth_rate/100)) ** 12) - 1
+    
+    col_val1, col_val2 = st.columns(2)
+    
+    if annualized_profit <= 0:
+        st.warning("⚠️ Business is not profitable yet. DCF Valuation requires positive profit.")
+    else:
+        years = [1, 2, 3, 4, 5]
+        pvs = []
+        cf = annualized_profit
+        for y in years:
+            cf = cf * (1 + annual_growth_rate)
+            pv = cf / ((1 + (discount_rate/100)) ** y)
+            pvs.append(pv)
+            
+        terminal_growth = 0.03
+        terminal_val = (cf * (1 + terminal_growth)) / ((discount_rate/100) - terminal_growth)
+        terminal_pv = terminal_val / ((1 + (discount_rate/100)) ** 5)
+        total_val = sum(pvs) + terminal_pv
+        
+        with col_val1:
+            st.metric("Estimated Valuation", f"${total_val:,.2f}")
+            st.caption(f"Based on {growth_rate}% Monthly Growth (approx {annual_growth_rate*100:.1f}% Annually)")
 
-# --- TAB 5: AI ADVISOR (UPDATED FOR YOUR MODEL) ---
+# --- TAB 5: AI ADVISOR (Corrected Model Name) ---
 with tab5:
     st.subheader("🤖 AI Financial Advisor")
     user_q = st.text_input("Ask a question:", "How can I improve my valuation?")
@@ -100,30 +187,32 @@ with tab5:
     if st.button("Get Answer"):
         with st.spinner("Connecting to Gemini..."):
             
-            # -------------------------------------------------------
-            # 🔧 UPDATED: Using 'gemini-2.5-flash' from your valid list
-            # -------------------------------------------------------
+            # Using the model we confirmed works for your account:
             model_name = "gemini-2.5-flash" 
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             
+            annual_growth_est = ((1 + (growth_rate/100)) ** 12) - 1
             payload = {
                 "contents": [{
-                    "parts": [{"text": f"You are a CFO. Data: Profit ${net_profit}, Cash ${current_cash}. Question: {user_q}"}]
+                    "parts": [{"text": f"""
+                    You are a CFO. Analyze this data:
+                    - Monthly Profit: ${net_profit:,.2f}
+                    - Cash: ${current_cash:,.2f}
+                    - Runway: {runway_months:.1f} months
+                    - Implied Annual Growth: {annual_growth_est*100:.1f}%
+                    User Question: {user_q}
+                    Answer concisely.
+                    """}]
                 }]
             }
             
             try:
-                # SEND REQUEST
                 response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
-                
-                # SUCCESS?
                 if response.status_code == 200:
                     ans = response.json()['candidates'][0]['content']['parts'][0]['text']
                     st.success("Success!")
                     st.markdown(ans)
-                    
                 else:
                     st.error(f"Error {response.status_code}: {response.text}")
-                    
             except Exception as e:
                 st.error(f"Connection Error: {e}")

@@ -207,9 +207,7 @@ with tab4:
         with col_val1:
             st.metric("Estimated Valuation", f"${total_val:,.2f}")
             st.caption(f"Based on {growth_rate}% Monthly Growth (approx {annual_growth_rate*100:.1f}% Annually)")
-        
-        with col_val2:
-            st.info("💡 **Why did this jump?**\nWe corrected the math. Compounding 5% growth every month means you nearly double your size every year!")
+
 
 # --- TAB 5: AI ADVISOR (Requests Method) ---
 with tab5:
@@ -253,6 +251,7 @@ with tab5:
                         st.error(f"Error {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
+
 
 
 

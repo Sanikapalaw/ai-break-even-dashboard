@@ -210,6 +210,7 @@ with tab4:
 
 
 # --- TAB 5: AI ADVISOR (Requests Method) ---
+# --- TAB 5: AI ADVISOR (FIXED MODEL NAME) ---
 with tab5:
     st.subheader("🤖 AI Financial Advisor (Powered by Gemini)")
     st.write("Ask the AI about your financial health, risks, or strategy.")
@@ -221,23 +222,30 @@ with tab5:
             st.error("⚠️ API Key missing. Please check your secrets or enter it in the sidebar.")
         else:
             with st.spinner("Analyzing your financial data..."):
-                # Prepare Context
+                # Prepare Context with corrected Annual Growth logic
+                # (We use the 'annual_growth_rate' calculated in Tab 4 if available, 
+                # otherwise we estimate it here for the prompt)
+                annual_growth_est = ((1 + (growth_rate/100)) ** 12) - 1
+                
                 context_prompt = f"""
-                You are a CFO. Analyze this data:
-                - Revenue: ${total_revenue}
-                - Costs: ${total_costs}
-                - Profit: ${net_profit}
-                - Break-Even: {break_even_units} units
-                - Cash: ${current_cash}
-                - Runway: {runway_months} months
+                You are a CFO. Analyze this startup's data:
+                - Monthly Revenue: ${total_revenue:,.2f}
+                - Monthly Costs: ${total_costs:,.2f}
+                - Net Profit: ${net_profit:,.2f}
+                - Break-Even Units: {break_even_units:,.0f}
+                - Cash on Hand: ${current_cash:,.2f}
+                - Runway: {runway_months:.1f} months
+                - Implied Annual Growth: {annual_growth_est*100:.1f}% (based on 5% MoM)
                 
                 User Question: "{user_question}"
-                Answer strategically in bullet points.
+                
+                Answer strategically in bullet points. Be concise.
                 """
                 
-                # CALL API DIRECTLY (No library installation needed)
-                # Using standard Gemini 1.5 Flash model
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                # -------------------------------------------------------
+                # 🔧 FIX: Changed model to 'gemini-1.5-flash-latest'
+                # -------------------------------------------------------
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
                 headers = {"Content-Type": "application/json"}
                 data = {"contents": [{"parts": [{"text": context_prompt}]}]}
                 
@@ -248,10 +256,14 @@ with tab5:
                         st.success("Analysis Complete")
                         st.markdown(ai_text)
                     else:
-                        st.error(f"Error {response.status_code}: {response.text}")
+                        # Fallback: If Flash fails, try Gemini Pro
+                        st.warning(f"Flash model failed ({response.status_code}), trying standard Gemini Pro...")
+                        fallback_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+                        response_fb = requests.post(fallback_url, headers=headers, json=data)
+                        if response_fb.status_code == 200:
+                             ai_text = response_fb.json()['candidates'][0]['content']['parts'][0]['text']
+                             st.markdown(ai_text)
+                        else:
+                            st.error(f"Error: {response.text}")
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
-
-
-
-

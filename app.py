@@ -19,7 +19,6 @@ try:
 except (FileNotFoundError, KeyError):
     api_key = ""
 
-# If the key is missing, stop the app and show instructions
 if not api_key:
     st.error("🚨 **API Key Missing**")
     st.info("""
@@ -34,7 +33,7 @@ if not api_key:
     1. Go to App Settings -> Secrets.
     2. Paste: `GEMINI_API_KEY = "your_key_here"`
     """)
-    st.stop() # Stops the app here so it doesn't crash later
+    st.stop()
 
 # ----------------- 1. UNIVERSAL INPUTS -----------------
 st.header("1. Enter Your Business Metrics")
@@ -51,7 +50,6 @@ with col_in1:
 with col_in2:
     st.subheader("📦 Sales & Operations")
     units_sold = st.number_input("Current Units Sold", min_value=0, value=4000, step=100)
-    # Marketing spend is now included in total costs!
     marketing_spend = st.number_input("Marketing Spend ($)", min_value=0.0, value=1000.0, step=100.0)
     employee_count = st.number_input("Employee Count", min_value=1, value=15)
 
@@ -64,11 +62,9 @@ with col_in3:
 # ----------------- 2. CORE CALCULATIONS -----------------
 total_revenue = units_sold * price_per_unit
 total_variable_cost = units_sold * variable_cost
-# Logic Correction: Adding Marketing Spend to Total Costs
 total_costs = fixed_costs + total_variable_cost + marketing_spend
 net_profit = total_revenue - total_costs
 
-# Break Even Logic
 if (price_per_unit - variable_cost) > 0:
     break_even_units = (fixed_costs + marketing_spend) / (price_per_unit - variable_cost)
     break_even_revenue = break_even_units * price_per_unit
@@ -110,21 +106,19 @@ with tab1:
     fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", template="plotly_white", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: LIQUIDITY (With Warning System) ---
+# --- TAB 2: LIQUIDITY ---
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
     monthly_burn = fixed_costs + marketing_spend
     runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
     
-    # --- NEW: Dynamic Alert System ---
     if runway_months < 3:
         st.error(f"⚠️ CRITICAL ALERT: Only {runway_months:.1f} months of cash remaining! Immediate action required.")
     elif runway_months < 6:
         st.warning(f"⚠️ CAUTION: {runway_months:.1f} months of runway. Plan fundraising soon.")
     else:
         st.success(f"✅ HEALTHY: {runway_months:.1f} months of runway available.")
-    # ---------------------------------
     
     col_l1, col_l2 = st.columns(2)
     with col_l1:
@@ -172,13 +166,11 @@ with tab3:
     fig_proj.update_layout(template="plotly_white", height=500)
     st.plotly_chart(fig_proj, use_container_width=True)
 
-# --- TAB 4: VALUATION (CORRECTED LOGIC) ---
+# --- TAB 4: VALUATION ---
 with tab4:
     st.subheader("Valuation: What is the business worth? (DCF Model)")
     
     annualized_profit = net_profit * 12
-    
-    # 🔧 THE FIX: Convert Monthly Growth to Annual Growth
     annual_growth_rate = ((1 + (growth_rate/100)) ** 12) - 1
     
     col_val1, col_val2 = st.columns(2)
@@ -190,13 +182,11 @@ with tab4:
         pvs = []
         cf = annualized_profit
         
-        # Calculate Future Cash Flows
         for y in years:
             cf = cf * (1 + annual_growth_rate)
             pv = cf / ((1 + (discount_rate/100)) ** y)
             pvs.append(pv)
             
-        # Terminal Value
         terminal_growth = 0.03
         terminal_val = (cf * (1 + terminal_growth)) / ((discount_rate/100) - terminal_growth)
         terminal_pv = terminal_val / ((1 + (discount_rate/100)) ** 5)
@@ -207,7 +197,7 @@ with tab4:
             st.metric("Estimated Valuation", f"${total_val:,.2f}")
             st.caption(f"Based on {growth_rate}% Monthly Growth (approx {annual_growth_rate*100:.1f}% Annually)")
 
-# --- TAB 5: AI ADVISOR (FIXED MODEL NAME) ---
+# --- TAB 5: AI ADVISOR (BULLETPROOF VERSION) ---
 with tab5:
     st.subheader("🤖 AI Financial Advisor (Powered by Gemini)")
     st.write("Ask the AI about your financial health, risks, or strategy.")
@@ -215,7 +205,7 @@ with tab5:
     user_question = st.text_input("Ask something:", placeholder="How can I double my profit?")
     
     if st.button("Get AI Analysis"):
-        with st.spinner("Analyzing your financial data..."):
+        with st.spinner("Analyzing data (Trying multiple AI models)..."):
             annual_growth_est = ((1 + (growth_rate/100)) ** 12) - 1
             
             context_prompt = f"""
@@ -232,18 +222,38 @@ with tab5:
             Answer strategically in bullet points. Be concise.
             """
             
-            # 🔧 FIX: Using standard 'gemini-1.5-flash' (removed -latest which caused 404)
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
             headers = {"Content-Type": "application/json"}
             data = {"contents": [{"parts": [{"text": context_prompt}]}]}
             
-            try:
-                response = requests.post(url, headers=headers, json=data)
-                if response.status_code == 200:
-                    ai_text = response.json()['candidates'][0]['content']['parts'][0]['text']
-                    st.success("Analysis Complete")
-                    st.markdown(ai_text)
-                else:
-                    st.error(f"Error {response.status_code}: {response.text}")
-            except Exception as e:
-                st.error(f"Connection Error: {e}")
+            # ------------------------------------------------------------------
+            # 🛡️ BULLETPROOF LOGIC: Try 3 models in sequence until one works
+            # ------------------------------------------------------------------
+            models_to_try = [
+                "gemini-1.5-flash",          # 1. Best choice
+                "gemini-1.5-flash-001",      # 2. Specific version (often works if alias fails)
+                "gemini-pro"                 # 3. Old reliable (almost always works)
+            ]
+            
+            success = False
+            
+            for model_name in models_to_try:
+                try:
+                    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+                    response = requests.post(url, headers=headers, json=data)
+                    
+                    if response.status_code == 200:
+                        ai_text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                        st.success(f"Analysis Complete (Used model: `{model_name}`)")
+                        st.markdown(ai_text)
+                        success = True
+                        break # Stop trying other models
+                    else:
+                        print(f"Model {model_name} failed with {response.status_code}")
+                        continue # Try next model
+                except Exception as e:
+                    print(f"Connection error with {model_name}: {e}")
+                    continue
+            
+            if not success:
+                st.error("❌ All AI models failed. Please check your API Key and internet connection.")
+                st.code(response.text if 'response' in locals() else "Connection Failed")

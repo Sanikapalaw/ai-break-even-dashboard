@@ -13,17 +13,28 @@ st.title("📈 AI CFO: The Roadmap to Profitability")
 st.markdown("### Liquidity • Financial Modeling • Valuation • AI Insights")
 st.markdown("---")
 
-# ----------------- API KEY HANDLING -----------------
-# Try to get key from secrets first (Best for Cloud), then Sidebar (Best for Local/Expo)
+# ----------------- API KEY HANDLING (SECRETS ONLY) -----------------
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-except:
+except (FileNotFoundError, KeyError):
     api_key = ""
 
+# If the key is missing, stop the app and show instructions
 if not api_key:
-    with st.sidebar:
-        st.warning("⚠️ API Key not found in secrets.")
-        api_key = st.text_input("Enter Gemini API Key", type="password")
+    st.error("🚨 **API Key Missing**")
+    st.info("""
+    To use this app, you must add your Gemini API key to the secrets.
+    
+    **If running locally:**
+    1. Create a folder named `.streamlit` in your project directory.
+    2. Create a file inside it named `secrets.toml`.
+    3. Add this line: `GEMINI_API_KEY = "your_key_here"`
+    
+    **If on Streamlit Cloud:**
+    1. Go to App Settings -> Secrets.
+    2. Paste: `GEMINI_API_KEY = "your_key_here"`
+    """)
+    st.stop() # Stops the app here so it doesn't crash later
 
 # ----------------- 1. UNIVERSAL INPUTS -----------------
 st.header("1. Enter Your Business Metrics")
@@ -204,38 +215,35 @@ with tab5:
     user_question = st.text_input("Ask something:", placeholder="How can I double my profit?")
     
     if st.button("Get AI Analysis"):
-        if not api_key:
-            st.error("⚠️ API Key missing. Please check your secrets or enter it in the sidebar.")
-        else:
-            with st.spinner("Analyzing your financial data..."):
-                annual_growth_est = ((1 + (growth_rate/100)) ** 12) - 1
-                
-                context_prompt = f"""
-                You are a CFO. Analyze this startup's data:
-                - Monthly Revenue: ${total_revenue:,.2f}
-                - Monthly Costs: ${total_costs:,.2f}
-                - Net Profit: ${net_profit:,.2f}
-                - Break-Even Units: {break_even_units:,.0f}
-                - Cash on Hand: ${current_cash:,.2f}
-                - Runway: {runway_months:.1f} months
-                - Implied Annual Growth: {annual_growth_est*100:.1f}% (based on 5% MoM)
-                
-                User Question: "{user_question}"
-                Answer strategically in bullet points. Be concise.
-                """
-                
-                # 🔧 FIX: Using standard 'gemini-1.5-flash-latest' to avoid 404 errors
-                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
-                headers = {"Content-Type": "application/json"}
-                data = {"contents": [{"parts": [{"text": context_prompt}]}]}
-                
-                try:
-                    response = requests.post(url, headers=headers, json=data)
-                    if response.status_code == 200:
-                        ai_text = response.json()['candidates'][0]['content']['parts'][0]['text']
-                        st.success("Analysis Complete")
-                        st.markdown(ai_text)
-                    else:
-                        st.error(f"Error {response.status_code}: {response.text}")
-                except Exception as e:
-                    st.error(f"Connection Error: {e}")
+        with st.spinner("Analyzing your financial data..."):
+            annual_growth_est = ((1 + (growth_rate/100)) ** 12) - 1
+            
+            context_prompt = f"""
+            You are a CFO. Analyze this startup's data:
+            - Monthly Revenue: ${total_revenue:,.2f}
+            - Monthly Costs: ${total_costs:,.2f}
+            - Net Profit: ${net_profit:,.2f}
+            - Break-Even Units: {break_even_units:,.0f}
+            - Cash on Hand: ${current_cash:,.2f}
+            - Runway: {runway_months:.1f} months
+            - Implied Annual Growth: {annual_growth_est*100:.1f}% (based on 5% MoM)
+            
+            User Question: "{user_question}"
+            Answer strategically in bullet points. Be concise.
+            """
+            
+            # 🔧 FIX: Using standard 'gemini-1.5-flash-latest' to avoid 404 errors
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
+            headers = {"Content-Type": "application/json"}
+            data = {"contents": [{"parts": [{"text": context_prompt}]}]}
+            
+            try:
+                response = requests.post(url, headers=headers, json=data)
+                if response.status_code == 200:
+                    ai_text = response.json()['candidates'][0]['content']['parts'][0]['text']
+                    st.success("Analysis Complete")
+                    st.markdown(ai_text)
+                else:
+                    st.error(f"Error {response.status_code}: {response.text}")
+            except Exception as e:
+                st.error(f"Connection Error: {e}")

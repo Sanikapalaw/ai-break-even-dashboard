@@ -92,7 +92,7 @@ with tab4:
     val = sum(pvs) + (cf * 1.03 / (discount_rate/100 - 0.03)) / ((1 + discount_rate/100)**5)
     st.metric("Valuation (DCF)", f"${val:,.2f}")
 
-# --- TAB 5: AI ADVISOR (ROBUST API VERSION) ---
+# --- TAB 5: AI ADVISOR (UPDATED FOR YOUR MODEL) ---
 with tab5:
     st.subheader("🤖 AI Financial Advisor")
     user_q = st.text_input("Ask a question:", "How can I improve my valuation?")
@@ -100,8 +100,10 @@ with tab5:
     if st.button("Get Answer"):
         with st.spinner("Connecting to Gemini..."):
             
-            # 1. THE URL (Using the most standard name)
-            model_name = "gemini-1.5-flash" 
+            # -------------------------------------------------------
+            # 🔧 UPDATED: Using 'gemini-2.5-flash' from your valid list
+            # -------------------------------------------------------
+            model_name = "gemini-2.5-flash" 
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             
             payload = {
@@ -111,34 +113,15 @@ with tab5:
             }
             
             try:
-                # 2. SEND REQUEST
+                # SEND REQUEST
                 response = requests.post(url, json=payload, headers={"Content-Type": "application/json"})
                 
-                # 3. SUCCESS?
+                # SUCCESS?
                 if response.status_code == 200:
                     ans = response.json()['candidates'][0]['content']['parts'][0]['text']
                     st.success("Success!")
                     st.markdown(ans)
                     
-                # 4. FAILURE (404) -> DIAGNOSTIC MODE
-                elif response.status_code == 404:
-                    st.error(f"❌ Model '{model_name}' not found.")
-                    st.info("🔍 Attempting to list available models for your key...")
-                    
-                    # Call the 'list models' endpoint
-                    list_url = f"https://generativelanguage.googleapis.com/v1beta/models?key={api_key}"
-                    list_resp = requests.get(list_url)
-                    
-                    if list_resp.status_code == 200:
-                        models = list_resp.json().get('models', [])
-                        valid_names = [m['name'].replace('models/', '') for m in models if 'generateContent' in m.get('supportedGenerationMethods', [])]
-                        
-                        st.warning("⚠️ YOUR AVAILABLE MODELS ARE:")
-                        st.code(valid_names)
-                        st.write("👉 Please edit line 87 in app.py to use one of these names.")
-                    else:
-                        st.error("Could not list models. Is your API Key valid?")
-                        
                 else:
                     st.error(f"Error {response.status_code}: {response.text}")
                     

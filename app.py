@@ -166,26 +166,50 @@ with tab3:
     st.plotly_chart(fig_proj, use_container_width=True)
 
 # --- TAB 4: VALUATION ---
+# --- TAB 4: VALUATION (CORRECTED LOGIC) ---
 with tab4:
-    st.subheader("Valuation: What is the business worth?")
+    st.subheader("Valuation: What is the business worth? (DCF Model)")
     
     annualized_profit = net_profit * 12
+    
+    # ---------------------------------------------------------
+    # 🔧 THE FIX: Convert Monthly Growth to Annual Growth
+    # If you grow 5% a month, that is ~79.6% a year!
+    # ---------------------------------------------------------
+    annual_growth_rate = ((1 + (growth_rate/100)) ** 12) - 1
+    
+    col_val1, col_val2 = st.columns(2)
+    
     if annualized_profit <= 0:
-        st.warning("⚠️ Business is not profitable. Valuation models work best with positive cash flow.")
+        st.warning("⚠️ Business is not profitable yet. DCF Valuation requires positive profit.")
     else:
         years = [1, 2, 3, 4, 5]
         pvs = []
         cf = annualized_profit
+        
+        # Calculate Future Cash Flows
         for y in years:
-            cf = cf * (1 + (growth_rate/100))
+            # We use the annualized rate now
+            cf = cf * (1 + annual_growth_rate)
+            
+            # Discount back to today
             pv = cf / ((1 + (discount_rate/100)) ** y)
             pvs.append(pv)
             
-        terminal_val = (cf * 1.03) / ( (discount_rate/100) - 0.03 )
+        # Terminal Value (The value of the business forever after Year 5)
+        # Assuming a conservative 3% long-term inflation growth after Year 5
+        terminal_growth = 0.03
+        terminal_val = (cf * (1 + terminal_growth)) / ((discount_rate/100) - terminal_growth)
         terminal_pv = terminal_val / ((1 + (discount_rate/100)) ** 5)
+        
         total_val = sum(pvs) + terminal_pv
         
-        st.metric("Estimated Company Value (DCF)", f"${total_val:,.2f}")
+        with col_val1:
+            st.metric("Estimated Valuation", f"${total_val:,.2f}")
+            st.caption(f"Based on {growth_rate}% Monthly Growth (approx {annual_growth_rate*100:.1f}% Annually)")
+        
+        with col_val2:
+            st.info("💡 **Why did this jump?**\nWe corrected the math. Compounding 5% growth every month means you nearly double your size every year!")
 
 # --- TAB 5: AI ADVISOR (Requests Method) ---
 with tab5:
@@ -229,5 +253,6 @@ with tab5:
                         st.error(f"Error {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
+
 
 

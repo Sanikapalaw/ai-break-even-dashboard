@@ -232,8 +232,8 @@ with tab5:
             Answer strategically in bullet points. Be concise.
             """
             
-            # 🔧 FIX: Using standard 'gemini-1.5-flash-latest' to avoid 404 errors
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
+            # 🔧 FIX: Using standard 'gemini-1.5-flash' (removed -latest which caused 404)
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
             headers = {"Content-Type": "application/json"}
             data = {"contents": [{"parts": [{"text": context_prompt}]}]}
             

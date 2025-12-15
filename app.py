@@ -9,14 +9,7 @@ import json
 # ----------------- CONFIG -----------------
 st.set_page_config(layout="wide", page_title="AI CFO: Ultimate Dashboard", page_icon="📈")
 
-# ----------------- CUSTOM STYLE (Clean White Theme) -----------------
-st.markdown("""
-    <style>
-    .main { background-color: #ffffff; }
-    h1, h2, h3 { color: #111827; }
-    .stMetric { background-color: #f3f4f6; padding: 10px; border-radius: 5px; border: 1px solid #e5e7eb; }
-    </style>
-    """, unsafe_allow_html=True)
+
 
 # ----------------- TITLE -----------------
 st.title("📈 AI CFO: The Roadmap to Profitability")
@@ -225,3 +218,4 @@ with tab5:
                         st.error(f"Error {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
+

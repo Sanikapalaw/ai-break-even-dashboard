@@ -103,11 +103,21 @@ with tab1:
     st.plotly_chart(fig, use_container_width=True)
 
 # --- TAB 2: LIQUIDITY ---
+# --- TAB 2: LIQUIDITY (Updated with Warning System) ---
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
     monthly_burn = fixed_costs + marketing_spend
     runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
+    
+    # --- NEW: Dynamic Alert System ---
+    if runway_months < 3:
+        st.error(f"⚠️ CRITICAL ALERT: Only {runway_months:.1f} months of cash remaining! Immediate action required.")
+    elif runway_months < 6:
+        st.warning(f"⚠️ CAUTION: {runway_months:.1f} months of runway. Plan fundraising soon.")
+    else:
+        st.success(f"✅ HEALTHY: {runway_months:.1f} months of runway available.")
+    # ---------------------------------
     
     col_l1, col_l2 = st.columns(2)
     with col_l1:
@@ -121,17 +131,18 @@ with tab2:
             title = {'text': "Runway (Months)"},
             gauge = {
                 'axis': {'range': [0, 12]},
-                'bar': {'color': "#3B82F6"},
+                'bar': {'color': "black"},  # Changed needle to black for visibility
                 'steps': [
-                    {'range': [0, 3], 'color': "#EF4444"},
-                    {'range': [3, 6], 'color': "gold"},
-                    {'range': [6, 12], 'color': "#10B981"}],
+                    {'range': [0, 3], 'color': "#EF4444"}, # Red Zone
+                    {'range': [3, 6], 'color': "gold"},    # Yellow Zone
+                    {'range': [6, 12], 'color': "#10B981"} # Green Zone
+                ],
             }
         ))
         fig_gauge.update_layout(height=300, template="plotly_white")
         st.plotly_chart(fig_gauge, use_container_width=True)
 
-# --- TAB 3: PROJECTIONS ---
+#---with tab3
 with tab3:
     st.subheader("Financial Modeling: 12-Month Forecast")
     
@@ -218,4 +229,5 @@ with tab5:
                         st.error(f"Error {response.status_code}: {response.text}")
                 except Exception as e:
                     st.error(f"Connection Error: {e}")
+
 

@@ -43,11 +43,34 @@ with col_in2:
 with col_in3:
     st.subheader("🔮 Modeling & Cash")
     current_cash = st.number_input("Cash on Hand ($)", value=50000.0, step=5000.0)
-    growth_rate = st.slider("Expected Monthly Growth (%)", 0, 20, 5)
     discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10)
     
-    # Clearly labeled that this affects the CHART only
-    forecast_months = st.slider("Chart View Duration (Months)", 6, 60, 24, step=6, help="Controls the X-Axis of the Future Modeling chart.")
+    st.markdown("---")
+    
+    # --- FEATURE 1: Growth Rate Toggle (Monthly vs Annual) ---
+    growth_mode = st.radio("Growth Rate Input:", ["Monthly %", "Annual %"], horizontal=True)
+    
+    if growth_mode == "Monthly %":
+        raw_growth = st.slider("Expected Monthly Growth (%)", 0.0, 20.0, 5.0, step=0.5)
+        # Convert to Annual for Valuation
+        monthly_growth_rate = raw_growth
+        annual_growth_rate = ((1 + (raw_growth/100)) ** 12) - 1
+    else:
+        raw_growth = st.slider("Expected Annual Growth (%)", 0.0, 200.0, 80.0, step=5.0)
+        # Convert to Monthly for Projections
+        annual_growth_rate = raw_growth / 100
+        monthly_growth_rate = ((1 + annual_growth_rate) ** (1/12) - 1) * 100
+
+    # --- FEATURE 2: Forecast Horizon Dropdown ---
+    st.write(" **Chart View:**")
+    horizon_options = {
+        "6 Months (Short Term)": 6,
+        "12 Months (1 Year)": 12, 
+        "24 Months (2 Years)": 24, 
+        "60 Months (5 Years)": 60
+    }
+    selected_horizon = st.selectbox("Select Forecast Duration", list(horizon_options.keys()), index=1) # Default to 12 Months
+    forecast_months = horizon_options[selected_horizon]
 
 # ----------------- 2. CALCULATIONS -----------------
 total_revenue = units_sold * price_per_unit
@@ -96,7 +119,7 @@ with tab1:
     fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: LIQUIDITY (LEGEND AT BOTTOM) ---
+# --- TAB 2: LIQUIDITY ---
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
@@ -116,7 +139,7 @@ with tab2:
             st.success(f"✅ HEALTHY: {runway_months:.1f} Months")
 
     with col_l2:
-        # 1. The Gauge Chart
+        # Gauge Chart
         fig_gauge = go.Figure(go.Indicator(
             mode = "gauge+number",
             value = runway_months,
@@ -134,7 +157,7 @@ with tab2:
         fig_gauge.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
         st.plotly_chart(fig_gauge, use_container_width=True)
         
-        # 2. The Legend (Placed directly BELOW the chart)
+        # Legend
         st.markdown("""
         <div style="text-align: center; background-color: #f9f9f9; padding: 10px; border-radius: 5px;">
             <span style="color: #EF4444; font-weight: bold;">🔴 Danger (0-3 Mo)</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
@@ -143,9 +166,9 @@ with tab2:
         </div>
         """, unsafe_allow_html=True)
 
-# --- TAB 3: PROJECTIONS (UPDATES WITH SLIDER) ---
+# --- TAB 3: PROJECTIONS ---
 with tab3:
-    st.subheader(f"Financial Modeling: {forecast_months}-Month Forecast")
+    st.subheader(f"Financial Modeling: {selected_horizon} Forecast")
     
     months = list(range(1, forecast_months + 1))
     
@@ -154,7 +177,8 @@ with tab3:
     curr_u = units_sold
     
     for m in months:
-        curr_u = curr_u * (1 + (growth_rate/100))
+        # Use calculated monthly_growth_rate
+        curr_u = curr_u * (1 + (monthly_growth_rate/100))
         r = curr_u * price_per_unit
         c = fixed_costs + marketing_spend + (curr_u * variable_cost)
         p = r - c
@@ -164,7 +188,7 @@ with tab3:
     df_proj = pd.DataFrame({"Month": months, "Revenue": proj_revenue, "Profit": proj_profit})
     
     fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Profit"], 
-                       title=f"Projection with {growth_rate}% Monthly Growth", 
+                       title=f"Projection based on {raw_growth}% {growth_mode}", 
                        markers=True)
     
     fig_proj.update_traces(line=dict(dash='dash', width=2), marker=dict(size=8, symbol="circle-open"))
@@ -175,7 +199,6 @@ with tab3:
 with tab4:
     st.subheader("Valuation: What is the business worth? (DCF Model)")
     annualized_profit = net_profit * 12
-    annual_growth_rate = ((1 + (growth_rate/100)) ** 12) - 1
     
     col_val1, col_val2 = st.columns(2)
     
@@ -186,6 +209,7 @@ with tab4:
         pvs = []
         cf = annualized_profit
         for y in years:
+            # Use calculated annual_growth_rate
             cf = cf * (1 + annual_growth_rate)
             pv = cf / ((1 + (discount_rate/100)) ** y)
             pvs.append(pv)
@@ -197,7 +221,7 @@ with tab4:
         
         with col_val1:
             st.metric("Estimated Valuation", f"${total_val:,.2f}")
-            st.caption(f"Based on {growth_rate}% Monthly Growth (approx {annual_growth_rate*100:.1f}% Annually)")
+            st.caption(f"Based on approx {annual_growth_rate*100:.1f}% Annual Growth")
 
 # --- TAB 5: AI ADVISOR ---
 with tab5:
@@ -209,7 +233,6 @@ with tab5:
             model_name = "gemini-2.5-flash" 
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             
-            annual_growth_est = ((1 + (growth_rate/100)) ** 12) - 1
             payload = {
                 "contents": [{
                     "parts": [{"text": f"""
@@ -217,7 +240,7 @@ with tab5:
                     - Monthly Profit: ${net_profit:,.2f}
                     - Cash: ${current_cash:,.2f}
                     - Runway: {runway_months:.1f} months
-                    - Implied Annual Growth: {annual_growth_est*100:.1f}%
+                    - Growth Input: {raw_growth}% ({growth_mode})
                     User Question: {user_q}
                     Answer concisely.
                     """}]

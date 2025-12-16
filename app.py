@@ -45,6 +45,8 @@ with col_in3:
     current_cash = st.number_input("Cash on Hand ($)", value=50000.0, step=5000.0)
     growth_rate = st.slider("Expected Monthly Growth (%)", 0, 20, 5)
     discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10)
+    # --- NEW INPUT: Forecast Months ---
+    forecast_months = st.slider("Forecast Duration (Months)", 6, 60, 12, step=6)
 
 # ----------------- 2. CALCULATIONS -----------------
 total_revenue = units_sold * price_per_unit
@@ -63,7 +65,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "📊 Break-Even", "💧 Liquidity", "📈 Modeling", "💰 Valuation", "🤖 AI Advisor"
 ])
 
-# --- TAB 1: BREAK-EVEN (Chart Restored) ---
+# --- TAB 1: BREAK-EVEN ---
 with tab1:
     st.subheader("Snapshot: Current Performance")
     c1, c2, c3, c4 = st.columns(4)
@@ -74,7 +76,6 @@ with tab1:
 
     st.subheader("Interactive Break-Even Plot")
     
-    # Handle infinite break-even for plotting
     plot_max = units_sold * 2
     if break_even_units != float('inf'):
         plot_max = max(units_sold * 1.5, break_even_units * 1.5)
@@ -94,7 +95,7 @@ with tab1:
     fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: LIQUIDITY (Insights Restored) ---
+# --- TAB 2: LIQUIDITY (With Legend) ---
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
@@ -113,6 +114,15 @@ with tab2:
     with col_l1:
         st.metric("Cash on Hand", f"${current_cash:,.2f}")
         st.metric("Monthly Burn Rate", f"${monthly_burn:,.2f}")
+        
+        # --- NEW: LEGEND FOR GAUGE CHART ---
+        st.markdown("### 🚦 Gauge Legend")
+        st.caption("What do the colors mean?")
+        st.markdown("""
+        - 🔴 **Danger (0-3 Months):** You are running out of cash fast. Raise funds immediately.
+        - 🟡 **Warning (3-6 Months):** Start planning your next move.
+        - 🟢 **Safe (6+ Months):** You have a healthy runway. Focus on growth.
+        """)
     
     with col_l2:
         fig_gauge = go.Figure(go.Indicator(
@@ -131,10 +141,13 @@ with tab2:
         ))
         st.plotly_chart(fig_gauge, use_container_width=True)
 
-# --- TAB 3: PROJECTIONS ---
+# --- TAB 3: PROJECTIONS (Forecast Months + Dashed Lines) ---
 with tab3:
-    st.subheader("Financial Modeling: 12-Month Forecast")
-    months = list(range(1, 13))
+    st.subheader(f"Financial Modeling: {forecast_months}-Month Forecast")
+    
+    # --- UPDATE: Use 'forecast_months' input ---
+    months = list(range(1, forecast_months + 1))
+    
     proj_revenue = []
     proj_profit = []
     curr_u = units_sold
@@ -148,7 +161,14 @@ with tab3:
         proj_profit.append(p)
         
     df_proj = pd.DataFrame({"Month": months, "Revenue": proj_revenue, "Profit": proj_profit})
-    fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Profit"], title=f"Projection with {growth_rate}% Monthly Growth", markers=True)
+    
+    fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Profit"], 
+                       title=f"Projection with {growth_rate}% Monthly Growth", 
+                       markers=True)
+    
+    # --- UPDATE: Make lines DASHED ---
+    fig_proj.update_traces(line=dict(dash='dash', width=2), marker=dict(size=8, symbol="circle-open"))
+    
     st.plotly_chart(fig_proj, use_container_width=True)
 
 # --- TAB 4: VALUATION ---
@@ -179,7 +199,7 @@ with tab4:
             st.metric("Estimated Valuation", f"${total_val:,.2f}")
             st.caption(f"Based on {growth_rate}% Monthly Growth (approx {annual_growth_rate*100:.1f}% Annually)")
 
-# --- TAB 5: AI ADVISOR (Corrected Model Name) ---
+# --- TAB 5: AI ADVISOR ---
 with tab5:
     st.subheader("🤖 AI Financial Advisor")
     user_q = st.text_input("Ask a question:", "How can I improve my valuation?")
@@ -187,7 +207,7 @@ with tab5:
     if st.button("Get Answer"):
         with st.spinner("Connecting to Gemini..."):
             
-            # Using the model we confirmed works for your account:
+            # Use the working model
             model_name = "gemini-2.5-flash" 
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             

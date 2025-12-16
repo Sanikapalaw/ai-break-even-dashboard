@@ -24,9 +24,11 @@ if not api_key:
     st.info("Please add `GEMINI_API_KEY` to your secrets.toml file.")
     st.stop()
 
-# ----------------- 1. UNIVERSAL INPUTS -----------------
+# ----------------- 1. UNIVERSAL INPUTS (NOW 4 COLUMNS) -----------------
 st.header("1. Enter Your Business Metrics")
-col_in1, col_in2, col_in3 = st.columns(3)
+
+# Create 4 Columns for better alignment
+col_in1, col_in2, col_in3, col_in4 = st.columns(4)
 
 with col_in1:
     st.subheader("💰 Costs & Pricing")
@@ -35,41 +37,41 @@ with col_in1:
     price_per_unit = st.number_input("Price per Unit ($)", value=20.0, step=1.0)
 
 with col_in2:
-    st.subheader("📦 Sales & Operations")
+    st.subheader("📦 Operations")
     units_sold = st.number_input("Current Units Sold", value=4000, step=100)
     marketing_spend = st.number_input("Marketing Spend ($)", value=1000.0, step=100.0)
     employee_count = st.number_input("Employee Count", value=15)
 
 with col_in3:
-    st.subheader("🔮 Modeling & Cash")
+    st.subheader("🔮 Cash & Value")
     current_cash = st.number_input("Cash on Hand ($)", value=50000.0, step=5000.0)
     discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10)
+
+with col_in4:
+    st.subheader("🚀 Growth & Time")
     
-    st.markdown("---")
-    
-    # --- FEATURE 1: Growth Rate Toggle (Monthly vs Annual) ---
-    growth_mode = st.radio("Growth Rate Input:", ["Monthly %", "Annual %"], horizontal=True)
+    # Toggle for Monthly vs Annual Growth
+    growth_mode = st.radio("Growth Rate Mode:", ["Monthly %", "Annual %"], horizontal=True)
     
     if growth_mode == "Monthly %":
-        raw_growth = st.slider("Expected Monthly Growth (%)", 0.0, 20.0, 5.0, step=0.5)
-        # Convert to Annual for Valuation
+        raw_growth = st.slider("Monthly Growth (%)", 0.0, 20.0, 5.0, step=0.5)
+        # Conversions
         monthly_growth_rate = raw_growth
         annual_growth_rate = ((1 + (raw_growth/100)) ** 12) - 1
     else:
-        raw_growth = st.slider("Expected Annual Growth (%)", 0.0, 200.0, 80.0, step=5.0)
-        # Convert to Monthly for Projections
+        raw_growth = st.slider("Annual Growth (%)", 0.0, 200.0, 80.0, step=5.0)
+        # Conversions
         annual_growth_rate = raw_growth / 100
         monthly_growth_rate = ((1 + annual_growth_rate) ** (1/12) - 1) * 100
 
-    # --- FEATURE 2: Forecast Horizon Dropdown ---
-    st.write(" **Chart View:**")
+    # Forecast Duration Dropdown
     horizon_options = {
-        "6 Months (Short Term)": 6,
+        "6 Months": 6,
         "12 Months (1 Year)": 12, 
         "24 Months (2 Years)": 24, 
         "60 Months (5 Years)": 60
     }
-    selected_horizon = st.selectbox("Select Forecast Duration", list(horizon_options.keys()), index=1) # Default to 12 Months
+    selected_horizon = st.selectbox("Chart Timeline", list(horizon_options.keys()), index=1)
     forecast_months = horizon_options[selected_horizon]
 
 # ----------------- 2. CALCULATIONS -----------------
@@ -157,7 +159,7 @@ with tab2:
         fig_gauge.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
         st.plotly_chart(fig_gauge, use_container_width=True)
         
-        # Legend
+        # Legend (Bottom)
         st.markdown("""
         <div style="text-align: center; background-color: #f9f9f9; padding: 10px; border-radius: 5px;">
             <span style="color: #EF4444; font-weight: bold;">🔴 Danger (0-3 Mo)</span> &nbsp;&nbsp;|&nbsp;&nbsp; 

@@ -46,8 +46,8 @@ with col_in3:
     growth_rate = st.slider("Expected Monthly Growth (%)", 0, 20, 5)
     discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10)
     
-    # --- UPDATED LABEL: Explains the "Month Role" ---
-    forecast_months = st.slider("Projection Timeline (Months)", 6, 60, 12, step=6, help="How far into the future do you want to see? (12 = 1 Year)")
+    # Clearly labeled that this affects the CHART only
+    forecast_months = st.slider("Chart View Duration (Months)", 6, 60, 24, step=6, help="Controls the X-Axis of the Future Modeling chart.")
 
 # ----------------- 2. CALCULATIONS -----------------
 total_revenue = units_sold * price_per_unit
@@ -96,21 +96,18 @@ with tab1:
     fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: LIQUIDITY (FIXED LAYOUT) ---
+# --- TAB 2: LIQUIDITY (LEGEND AT BOTTOM) ---
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
     monthly_burn = fixed_costs + marketing_spend
     runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
     
-    # 1. Main Metrics Row
-    col_l1, col_l2 = st.columns([1, 2]) # Make the chart area wider
+    col_l1, col_l2 = st.columns([1, 2]) 
     
     with col_l1:
         st.metric("Cash on Hand", f"${current_cash:,.2f}")
         st.metric("Monthly Burn Rate", f"${monthly_burn:,.2f}")
-        
-        # Alert Box
         if runway_months < 3:
             st.error(f"⚠️ CRITICAL: {runway_months:.1f} Months")
         elif runway_months < 6:
@@ -119,38 +116,34 @@ with tab2:
             st.success(f"✅ HEALTHY: {runway_months:.1f} Months")
 
     with col_l2:
-        # Create two sub-columns: One for Chart, One for Legend
-        sub_c1, sub_c2 = st.columns([3, 1])
+        # 1. The Gauge Chart
+        fig_gauge = go.Figure(go.Indicator(
+            mode = "gauge+number",
+            value = runway_months,
+            title = {'text': "Runway (Months)"},
+            gauge = {
+                'axis': {'range': [0, 12]},
+                'bar': {'color': "black"},
+                'steps': [
+                    {'range': [0, 3], 'color': "#EF4444"},
+                    {'range': [3, 6], 'color': "gold"},
+                    {'range': [6, 12], 'color': "#10B981"}
+                ],
+            }
+        ))
+        fig_gauge.update_layout(height=300, margin=dict(l=20, r=20, t=50, b=20))
+        st.plotly_chart(fig_gauge, use_container_width=True)
         
-        with sub_c1:
-            fig_gauge = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = runway_months,
-                title = {'text': "Runway (Months)"},
-                gauge = {
-                    'axis': {'range': [0, 12]},
-                    'bar': {'color': "black"},
-                    'steps': [
-                        {'range': [0, 3], 'color': "#EF4444"},
-                        {'range': [3, 6], 'color': "gold"},
-                        {'range': [6, 12], 'color': "#10B981"}
-                    ],
-                }
-            ))
-            fig_gauge.update_layout(margin=dict(l=20, r=20, t=50, b=20))
-            st.plotly_chart(fig_gauge, use_container_width=True)
-            
-        with sub_c2:
-            st.markdown("###### Legend")
-            st.markdown("""
-            <div style="font-size: 12px;">
-            🔴 <b>0-3 Mo:</b><br>Danger Zone<br><br>
-            🟡 <b>3-6 Mo:</b><br>Warning<br><br>
-            🟢 <b>6+ Mo:</b><br>Safe Zone
-            </div>
-            """, unsafe_allow_html=True)
+        # 2. The Legend (Placed directly BELOW the chart)
+        st.markdown("""
+        <div style="text-align: center; background-color: #f9f9f9; padding: 10px; border-radius: 5px;">
+            <span style="color: #EF4444; font-weight: bold;">🔴 Danger (0-3 Mo)</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+            <span style="color: #EAB308; font-weight: bold;">🟡 Warning (3-6 Mo)</span> &nbsp;&nbsp;|&nbsp;&nbsp; 
+            <span style="color: #10B981; font-weight: bold;">🟢 Safe (6+ Mo)</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-# --- TAB 3: PROJECTIONS ---
+# --- TAB 3: PROJECTIONS (UPDATES WITH SLIDER) ---
 with tab3:
     st.subheader(f"Financial Modeling: {forecast_months}-Month Forecast")
     
@@ -174,7 +167,6 @@ with tab3:
                        title=f"Projection with {growth_rate}% Monthly Growth", 
                        markers=True)
     
-    # Dashed Lines
     fig_proj.update_traces(line=dict(dash='dash', width=2), marker=dict(size=8, symbol="circle-open"))
     
     st.plotly_chart(fig_proj, use_container_width=True)

@@ -45,8 +45,9 @@ with col_in3:
     current_cash = st.number_input("Cash on Hand ($)", value=50000.0, step=5000.0)
     growth_rate = st.slider("Expected Monthly Growth (%)", 0, 20, 5)
     discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10)
-    # --- NEW INPUT: Forecast Months ---
-    forecast_months = st.slider("Forecast Duration (Months)", 6, 60, 12, step=6)
+    
+    # --- UPDATED LABEL: Explains the "Month Role" ---
+    forecast_months = st.slider("Projection Timeline (Months)", 6, 60, 12, step=6, help="How far into the future do you want to see? (12 = 1 Year)")
 
 # ----------------- 2. CALCULATIONS -----------------
 total_revenue = units_sold * price_per_unit
@@ -95,57 +96,64 @@ with tab1:
     fig.update_layout(title="Cost vs Revenue Structure", xaxis_title="Units Sold", yaxis_title="Amount ($)", height=500)
     st.plotly_chart(fig, use_container_width=True)
 
-# --- TAB 2: LIQUIDITY (With Legend) ---
+# --- TAB 2: LIQUIDITY (FIXED LAYOUT) ---
 with tab2:
     st.subheader("Liquidity: How long can we survive?")
     
     monthly_burn = fixed_costs + marketing_spend
     runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
     
-    # Insights Logic
-    if runway_months < 3:
-        st.error(f"⚠️ CRITICAL ALERT: Only {runway_months:.1f} months of cash remaining! Immediate action required.")
-    elif runway_months < 6:
-        st.warning(f"⚠️ CAUTION: {runway_months:.1f} months of runway. Plan fundraising soon.")
-    else:
-        st.success(f"✅ HEALTHY: {runway_months:.1f} months of runway available.")
+    # 1. Main Metrics Row
+    col_l1, col_l2 = st.columns([1, 2]) # Make the chart area wider
     
-    col_l1, col_l2 = st.columns(2)
     with col_l1:
         st.metric("Cash on Hand", f"${current_cash:,.2f}")
         st.metric("Monthly Burn Rate", f"${monthly_burn:,.2f}")
         
-        # --- NEW: LEGEND FOR GAUGE CHART ---
-        st.markdown("### 🚦 Gauge Legend")
-        st.caption("What do the colors mean?")
-        st.markdown("""
-        - 🔴 **Danger (0-3 Months):** You are running out of cash fast. Raise funds immediately.
-        - 🟡 **Warning (3-6 Months):** Start planning your next move.
-        - 🟢 **Safe (6+ Months):** You have a healthy runway. Focus on growth.
-        """)
-    
-    with col_l2:
-        fig_gauge = go.Figure(go.Indicator(
-            mode = "gauge+number",
-            value = runway_months,
-            title = {'text': "Runway (Months)"},
-            gauge = {
-                'axis': {'range': [0, 12]},
-                'bar': {'color': "black"},
-                'steps': [
-                    {'range': [0, 3], 'color': "#EF4444"},
-                    {'range': [3, 6], 'color': "gold"},
-                    {'range': [6, 12], 'color': "#10B981"}
-                ],
-            }
-        ))
-        st.plotly_chart(fig_gauge, use_container_width=True)
+        # Alert Box
+        if runway_months < 3:
+            st.error(f"⚠️ CRITICAL: {runway_months:.1f} Months")
+        elif runway_months < 6:
+            st.warning(f"⚠️ CAUTION: {runway_months:.1f} Months")
+        else:
+            st.success(f"✅ HEALTHY: {runway_months:.1f} Months")
 
-# --- TAB 3: PROJECTIONS (Forecast Months + Dashed Lines) ---
+    with col_l2:
+        # Create two sub-columns: One for Chart, One for Legend
+        sub_c1, sub_c2 = st.columns([3, 1])
+        
+        with sub_c1:
+            fig_gauge = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = runway_months,
+                title = {'text': "Runway (Months)"},
+                gauge = {
+                    'axis': {'range': [0, 12]},
+                    'bar': {'color': "black"},
+                    'steps': [
+                        {'range': [0, 3], 'color': "#EF4444"},
+                        {'range': [3, 6], 'color': "gold"},
+                        {'range': [6, 12], 'color': "#10B981"}
+                    ],
+                }
+            ))
+            fig_gauge.update_layout(margin=dict(l=20, r=20, t=50, b=20))
+            st.plotly_chart(fig_gauge, use_container_width=True)
+            
+        with sub_c2:
+            st.markdown("###### Legend")
+            st.markdown("""
+            <div style="font-size: 12px;">
+            🔴 <b>0-3 Mo:</b><br>Danger Zone<br><br>
+            🟡 <b>3-6 Mo:</b><br>Warning<br><br>
+            🟢 <b>6+ Mo:</b><br>Safe Zone
+            </div>
+            """, unsafe_allow_html=True)
+
+# --- TAB 3: PROJECTIONS ---
 with tab3:
     st.subheader(f"Financial Modeling: {forecast_months}-Month Forecast")
     
-    # --- UPDATE: Use 'forecast_months' input ---
     months = list(range(1, forecast_months + 1))
     
     proj_revenue = []
@@ -166,7 +174,7 @@ with tab3:
                        title=f"Projection with {growth_rate}% Monthly Growth", 
                        markers=True)
     
-    # --- UPDATE: Make lines DASHED ---
+    # Dashed Lines
     fig_proj.update_traces(line=dict(dash='dash', width=2), marker=dict(size=8, symbol="circle-open"))
     
     st.plotly_chart(fig_proj, use_container_width=True)
@@ -206,8 +214,6 @@ with tab5:
     
     if st.button("Get Answer"):
         with st.spinner("Connecting to Gemini..."):
-            
-            # Use the working model
             model_name = "gemini-2.5-flash" 
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
             

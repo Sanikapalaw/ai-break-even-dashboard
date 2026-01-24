@@ -48,7 +48,7 @@ with col3:
     current_cash = st.number_input("Cash on Hand ($)", 50000.0)
 
 with col4:
-    st.subheader("🚀 Growth")
+    st.subheader("🚀 Growth & Risk")
     monthly_growth = st.slider("Monthly Growth %", 0.0, 20.0, 5.0)
     discount_rate = st.slider("Discount Rate %", 5, 20, 10)
     forecast_months = st.selectbox("Forecast Horizon", [6,12,24,60])
@@ -65,29 +65,65 @@ runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
 
 # ----------------- TABS -----------------
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Performance", "💧 Liquidity", "📈 Forecast", "💰 Valuation", "🤖 AI Advisor"
+    "📊 Break-Even", "💧 Liquidity", "📈 Forecast", "💰 Valuation", "🤖 AI Advisor"
 ])
 
-# ----------------- TAB 1 -----------------
+# ----------------- TAB 1: BREAK EVEN -----------------
 with tab1:
-    c1, c2, c3 = st.columns(3)
+    st.subheader("Current Performance")
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Revenue", f"${total_revenue:,.0f}")
     c2.metric("Costs", f"${total_costs:,.0f}")
     c3.metric("Net Profit", f"${net_profit:,.0f}")
 
-# ----------------- TAB 2 -----------------
+    if (price_per_unit - variable_cost) > 0:
+        break_even_units = (fixed_costs + marketing_spend + salary_cost) / (price_per_unit - variable_cost)
+    else:
+        break_even_units = float('inf')
+
+    c4.metric("Break-Even Units", f"{break_even_units:,.0f}")
+
+    units_range = np.linspace(0, units_sold*2, 100)
+    rev_line = units_range * price_per_unit
+    cost_line = fixed_costs + marketing_spend + salary_cost + (units_range * variable_cost)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=units_range, y=rev_line, name="Revenue"))
+    fig.add_trace(go.Scatter(x=units_range, y=cost_line, name="Total Cost"))
+    fig.add_trace(go.Scatter(
+        x=[break_even_units], 
+        y=[break_even_units*price_per_unit],
+        mode="markers",
+        marker=dict(size=12, color="orange"),
+        name="Break-even"
+    ))
+
+    fig.update_layout(title="Break-Even Analysis", xaxis_title="Units", yaxis_title="Dollars")
+    st.plotly_chart(fig, use_container_width=True)
+
+# ----------------- TAB 2: LIQUIDITY -----------------
 with tab2:
+    st.subheader("Cash Runway")
+
     st.metric("Monthly Burn", f"${monthly_burn:,.0f}")
     st.metric("Runway (Months)", f"{runway_months:.1f}")
 
-    if runway_months < 3:
-        st.error("CRITICAL")
-    elif runway_months < 6:
-        st.warning("CAUTION")
-    else:
-        st.success("HEALTHY")
+    fig_gauge = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=runway_months,
+        title={'text': "Runway"},
+        gauge={
+            'axis': {'range': [0, 12]},
+            'steps': [
+                {'range': [0, 3], 'color': "#EF4444"},
+                {'range': [3, 6], 'color': "#EAB308"},
+                {'range': [6, 12], 'color': "#10B981"}
+            ],
+        }
+    ))
+    st.plotly_chart(fig_gauge, use_container_width=True)
 
-# ----------------- TAB 3 -----------------
+# ----------------- TAB 3: FORECAST -----------------
 with tab3:
     months = list(range(1, forecast_months+1))
     proj_revenue, proj_profit = [], []
@@ -97,17 +133,24 @@ with tab3:
         decay = np.exp(-0.05*m)
         effective_growth = (monthly_growth/100) * decay
         curr_units *= (1 + effective_growth)
+
         rev = curr_units * price_per_unit
         cost = fixed_costs + marketing_spend + salary_cost + (curr_units * variable_cost)
         prof = rev - cost
+
         proj_revenue.append(rev)
         proj_profit.append(prof)
 
-    df = pd.DataFrame({"Month": months, "Revenue": proj_revenue, "Profit": proj_profit})
+    df = pd.DataFrame({
+        "Month": months,
+        "Revenue": proj_revenue,
+        "Profit": proj_profit
+    })
+
     fig = px.line(df, x="Month", y=["Revenue","Profit"], markers=True)
     st.plotly_chart(fig, use_container_width=True)
 
-# ----------------- TAB 4 -----------------
+# ----------------- TAB 4: VALUATION -----------------
 with tab4:
     st.subheader("Company-Aware Valuation")
 
@@ -115,7 +158,7 @@ with tab4:
     annual_profit = net_profit * 12
 
     if company_stage == "Idea":
-        st.warning("Valuation not reliable at idea stage.")
+        st.warning("Valuation not reliable for idea-stage companies.")
 
     elif company_stage == "Early Startup":
         multiple = 3 if industry == "SaaS" else 1.5
@@ -149,11 +192,11 @@ with tab4:
     ### Model Assumptions
     - Growth slows over time  
     - Employee cost affects burn  
-    - Valuation depends on stage  
-    - Educational / strategic model  
+    - Valuation depends on company stage  
+    - Educational & strategic model  
     """)
 
-# ----------------- TAB 5 -----------------
+# ----------------- TAB 5: AI ADVISOR -----------------
 with tab5:
     user_q = st.text_input("Ask CFO:", "How can I improve profitability?")
     if st.button("Get AI Advice"):

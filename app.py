@@ -6,86 +6,103 @@ import plotly.express as px
 import requests
 
 # ----------------- CONFIG -----------------
-st.set_page_config(layout="wide", page_title="AI CFO: Company Decision System", page_icon="📈")
+st.set_page_config(layout="wide", page_title="AI CFO: Ultimate Dashboard", page_icon="📈")
 
 # ----------------- TITLE -----------------
-st.title("📈 AI CFO: Company-Level Financial Decision System")
-st.markdown("### Liquidity • Modeling • Valuation • Strategy • AI Advisor")
+st.title("📈 AI CFO: The Roadmap to Profitability")
+st.markdown("### Liquidity • Financial Modeling • Valuation • AI Insights")
 st.markdown("---")
 
-# ----------------- API KEY -----------------
+# ----------------- API KEY HANDLING -----------------
 try:
     api_key = st.secrets["GEMINI_API_KEY"]
-except:
+except (FileNotFoundError, KeyError):
     api_key = ""
 
 if not api_key:
-    st.error("Add GEMINI_API_KEY in secrets.toml")
+    st.error("🚨 **API Key Missing**")
+    st.info("Please add `GEMINI_API_KEY` to your secrets.toml file.")
     st.stop()
 
-# ----------------- INPUTS -----------------
-st.header("1. Business Inputs")
+# ----------------- 1. UNIVERSAL INPUTS -----------------
+st.header("1. Enter Your Business Metrics")
 
-col1, col2, col3, col4 = st.columns(4)
+col_in1, col_in2, col_in3, col_in4 = st.columns(4)
 
-with col1:
-    st.subheader("💰 Pricing & Costs")
-    fixed_costs = st.number_input("Fixed Costs ($/Month)", 25000.0)
-    variable_cost = st.number_input("Variable Cost per Unit ($)", 10.0)
-    price_per_unit = st.number_input("Price per Unit ($)", 20.0)
+with col_in1:
+    st.subheader("💰 Costs & Pricing")
+    fixed_costs = st.number_input("Fixed Costs ($/Month)", value=25000.0, step=1000.0)
+    variable_cost = st.number_input("Variable Cost per Unit ($)", value=10.0, step=1.0)
+    price_per_unit = st.number_input("Price per Unit ($)", value=20.0, step=1.0)
 
-with col2:
+with col_in2:
     st.subheader("📦 Operations")
-    units_sold = st.number_input("Units Sold", 4000)
-    marketing_spend = st.number_input("Marketing Spend ($)", 1000.0)
-    employee_count = st.number_input("Employees", 15)
-    avg_salary = st.number_input("Avg Salary / Employee ($)", 3000.0)
+    units_sold = st.number_input("Current Units Sold", value=4000, step=100)
+    marketing_spend = st.number_input("Marketing Spend ($)", value=1000.0, step=100.0)
+    employee_count = st.number_input("Employee Count", value=15)
 
-with col3:
-    st.subheader("🏢 Business Context")
-    company_stage = st.selectbox("Company Stage", ["Idea", "Early Startup", "Growth", "Mature"])
-    industry = st.selectbox("Industry", ["SaaS", "E-commerce", "FinTech", "EdTech", "Manufacturing"])
-    current_cash = st.number_input("Cash on Hand ($)", 50000.0)
+with col_in3:
+    st.subheader("🔮 Cash & Value")
+    current_cash = st.number_input("Cash on Hand ($)", value=50000.0, step=5000.0)
+    discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10)
 
-with col4:
-    st.subheader("🚀 Growth & Risk")
-    monthly_growth = st.slider("Monthly Growth %", 0.0, 20.0, 5.0)
-    discount_rate = st.slider("Discount Rate %", 5, 20, 10)
-    forecast_months = st.selectbox("Forecast Horizon", [6,12,24,60])
+with col_in4:
+    st.subheader("🚀 Growth & Time")
+    growth_mode = st.radio("Growth Rate Mode:", ["Monthly %", "Annual %"], horizontal=True)
+    
+    if growth_mode == "Monthly %":
+        raw_growth = st.slider("Monthly Growth (%)", 0.0, 20.0, 5.0, step=0.5)
+        monthly_growth_rate = raw_growth
+        annual_growth_rate = ((1 + (raw_growth/100)) ** 12) - 1
+    else:
+        raw_growth = st.slider("Annual Growth (%)", 0.0, 200.0, 80.0, step=5.0)
+        annual_growth_rate = raw_growth / 100
+        monthly_growth_rate = ((1 + annual_growth_rate) ** (1/12) - 1) * 100
 
-# ----------------- CORE CALCULATIONS -----------------
-salary_cost = employee_count * avg_salary
+    horizon_options = {
+        "6 Months": 6,
+        "12 Months": 12, 
+        "24 Months": 24, 
+        "60 Months": 60
+    }
+    selected_horizon = st.selectbox("Chart Timeline", list(horizon_options.keys()), index=1)
+    forecast_months = horizon_options[selected_horizon]
+
+# ---------- EXTRA 1: Company Stage ----------
+company_stage = st.selectbox(
+    "Company Stage",
+    ["Idea", "Early Startup", "Growth", "Mature"]
+)
+
+# ----------------- 2. CALCULATIONS -----------------
 total_revenue = units_sold * price_per_unit
 total_variable_cost = units_sold * variable_cost
-total_costs = fixed_costs + total_variable_cost + marketing_spend + salary_cost
+total_costs = fixed_costs + total_variable_cost + marketing_spend
 net_profit = total_revenue - total_costs
 
-monthly_burn = fixed_costs + marketing_spend + salary_cost
-runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
+if (price_per_unit - variable_cost) > 0:
+    break_even_units = (fixed_costs + marketing_spend) / (price_per_unit - variable_cost)
+else:
+    break_even_units = float('inf')
 
-# ----------------- TABS -----------------
+# ----------------- 3. TABS -----------------
+st.markdown("---")
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Break-Even", "💧 Liquidity", "📈 Forecast", "💰 Valuation", "🤖 AI Advisor"
+    "📊 Break-Even", "💧 Liquidity", "📈 Modeling", "💰 Valuation", "🤖 AI Advisor"
 ])
 
-# ----------------- TAB 1: BREAK EVEN -----------------
+# --- TAB 1: BREAK-EVEN ---
 with tab1:
-    st.subheader("Current Performance")
+    st.subheader("Snapshot: Current Performance")
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Revenue", f"${total_revenue:,.0f}")
-    c2.metric("Costs", f"${total_costs:,.0f}")
-    c3.metric("Net Profit", f"${net_profit:,.0f}")
-
-    if (price_per_unit - variable_cost) > 0:
-        break_even_units = (fixed_costs + marketing_spend + salary_cost) / (price_per_unit - variable_cost)
-    else:
-        break_even_units = float('inf')
-
+    c1.metric("Total Revenue", f"${total_revenue:,.2f}")
+    c2.metric("Total Costs", f"${total_costs:,.2f}")
+    c3.metric("Net Profit", f"${net_profit:,.2f}")
     c4.metric("Break-Even Units", f"{break_even_units:,.0f}")
 
     units_range = np.linspace(0, units_sold*2, 100)
     rev_line = units_range * price_per_unit
-    cost_line = fixed_costs + marketing_spend + salary_cost + (units_range * variable_cost)
+    cost_line = fixed_costs + marketing_spend + (units_range * variable_cost)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, name="Revenue"))
@@ -98,108 +115,81 @@ with tab1:
         name="Break-even"
     ))
 
-    fig.update_layout(title="Break-Even Analysis", xaxis_title="Units", yaxis_title="Dollars")
     st.plotly_chart(fig, use_container_width=True)
 
-# ----------------- TAB 2: LIQUIDITY -----------------
+# --- TAB 2: LIQUIDITY ---
 with tab2:
-    st.subheader("Cash Runway")
+    st.subheader("Liquidity")
 
-    st.metric("Monthly Burn", f"${monthly_burn:,.0f}")
+    # ---------- EXTRA 2: Employee Cost ----------
+    avg_salary = 3000
+    salary_cost = employee_count * avg_salary
+    monthly_burn = fixed_costs + marketing_spend + salary_cost
+    runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
+
+    st.metric("Monthly Burn", f"${monthly_burn:,.2f}")
     st.metric("Runway (Months)", f"{runway_months:.1f}")
 
-    fig_gauge = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=runway_months,
-        title={'text': "Runway"},
-        gauge={
-            'axis': {'range': [0, 12]},
-            'steps': [
-                {'range': [0, 3], 'color': "#EF4444"},
-                {'range': [3, 6], 'color': "#EAB308"},
-                {'range': [6, 12], 'color': "#10B981"}
-            ],
-        }
-    ))
-    st.plotly_chart(fig_gauge, use_container_width=True)
-
-# ----------------- TAB 3: FORECAST -----------------
+# --- TAB 3: PROJECTIONS ---
 with tab3:
-    months = list(range(1, forecast_months+1))
+    months = list(range(1, forecast_months + 1))
     proj_revenue, proj_profit = [], []
-    curr_units = units_sold
-
+    curr_u = units_sold
+    
     for m in months:
+        # ---------- EXTRA 3: Growth Decay ----------
         decay = np.exp(-0.05*m)
-        effective_growth = (monthly_growth/100) * decay
-        curr_units *= (1 + effective_growth)
+        curr_u = curr_u * (1 + (monthly_growth_rate/100)*decay)
 
-        rev = curr_units * price_per_unit
-        cost = fixed_costs + marketing_spend + salary_cost + (curr_units * variable_cost)
-        prof = rev - cost
+        r = curr_u * price_per_unit
+        c = fixed_costs + marketing_spend + (curr_u * variable_cost)
+        p = r - c
+        proj_revenue.append(r)
+        proj_profit.append(p)
+        
+    df_proj = pd.DataFrame({"Month": months, "Revenue": proj_revenue, "Profit": proj_profit})
+    fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Profit"], markers=True)
+    st.plotly_chart(fig_proj, use_container_width=True)
 
-        proj_revenue.append(rev)
-        proj_profit.append(prof)
-
-    df = pd.DataFrame({
-        "Month": months,
-        "Revenue": proj_revenue,
-        "Profit": proj_profit
-    })
-
-    fig = px.line(df, x="Month", y=["Revenue","Profit"], markers=True)
-    st.plotly_chart(fig, use_container_width=True)
-
-# ----------------- TAB 4: VALUATION -----------------
+# --- TAB 4: VALUATION ---
 with tab4:
-    st.subheader("Company-Aware Valuation")
-
-    annual_revenue = total_revenue * 12
-    annual_profit = net_profit * 12
-
+    st.subheader("Valuation: Simplified DCF (Educational Model)")
+    
+    # ---------- EXTRA 4: Company realism ----------
     if company_stage == "Idea":
         st.warning("Valuation not reliable for idea-stage companies.")
 
-    elif company_stage == "Early Startup":
-        multiple = 3 if industry == "SaaS" else 1.5
-        valuation = annual_revenue * multiple
-        st.metric("Revenue Multiple Valuation", f"${valuation:,.0f}")
+    annualized_profit = net_profit * 12
 
-    elif company_stage == "Growth":
-        ebitda = annual_profit * 0.8
-        valuation = ebitda * 6
-        st.metric("EV/EBITDA Valuation", f"${valuation:,.0f}")
+    if annualized_profit > 0:
+        years = [1,2,3,4,5]
+        pvs = []
+        cf = annualized_profit
+        for y in years:
+            cf *= (1 + annual_growth_rate)
+            pv = cf / ((1 + (discount_rate/100)) ** y)
+            pvs.append(pv)
 
-    elif company_stage == "Mature":
-        if annual_profit <= 0:
-            st.warning("DCF requires positive cash flow.")
-        else:
-            years = [1,2,3,4,5]
-            cf = annual_profit
-            pvs = []
-            for y in years:
-                cf *= (1 + monthly_growth*12/100)
-                pv = cf / ((1 + discount_rate/100)**y)
-                pvs.append(pv)
+        terminal_growth = 0.03
+        terminal_val = (cf*(1+terminal_growth))/((discount_rate/100)-terminal_growth)
+        terminal_pv = terminal_val/((1+(discount_rate/100))**5)
+        total_val = sum(pvs)+terminal_pv
 
-            terminal_growth = 0.03
-            terminal_val = (cf*(1+terminal_growth))/((discount_rate/100)-terminal_growth)
-            terminal_pv = terminal_val/((1+discount_rate/100)**5)
-            total_val = sum(pvs)+terminal_pv
-            st.metric("Simplified DCF Valuation", f"${total_val:,.0f}")
+        st.metric("Estimated Valuation", f"${total_val:,.2f}")
 
+    # ---------- EXTRA 5: Assumptions ----------
     st.markdown("""
     ### Model Assumptions
     - Growth slows over time  
     - Employee cost affects burn  
-    - Valuation depends on company stage  
-    - Educational & strategic model  
+    - DCF only valid for mature companies  
+    - Educational financial model  
     """)
 
-# ----------------- TAB 5: AI ADVISOR -----------------
+# --- TAB 5: AI ADVISOR ---
 with tab5:
     user_q = st.text_input("Ask CFO:", "How can I improve profitability?")
-    if st.button("Get AI Advice"):
+    if st.button("Get Answer"):
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
         payload = {
             "contents":[{
@@ -210,7 +200,6 @@ Revenue: {total_revenue}
 Profit: {net_profit}
 Runway: {runway_months}
 Stage: {company_stage}
-Industry: {industry}
 Question: {user_q}
 Give strategic advice.
 """

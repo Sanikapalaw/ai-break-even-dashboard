@@ -68,7 +68,7 @@ with col_in4:
     selected_horizon = st.selectbox("Chart Timeline", list(horizon_options.keys()), index=1)
     forecast_months = horizon_options[selected_horizon]
 
-# ---------- EXTRA 1: Company Stage ----------
+# ---------- Company Stage ----------
 company_stage = st.selectbox(
     "Company Stage",
     ["Idea", "Early Startup", "Growth", "Mature"]
@@ -107,6 +107,17 @@ with tab1:
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, name="Revenue"))
     fig.add_trace(go.Scatter(x=units_range, y=cost_line, name="Total Cost"))
+
+    # Current Status
+    fig.add_trace(go.Scatter(
+        x=[units_sold], 
+        y=[total_revenue], 
+        mode="markers",
+        marker=dict(color="blue", size=14),
+        name="Current Status"
+    ))
+
+    # Break-even point
     fig.add_trace(go.Scatter(
         x=[break_even_units], 
         y=[break_even_units*price_per_unit],
@@ -121,7 +132,6 @@ with tab1:
 with tab2:
     st.subheader("Liquidity")
 
-    # ---------- EXTRA 2: Employee Cost ----------
     avg_salary = 3000
     salary_cost = employee_count * avg_salary
     monthly_burn = fixed_costs + marketing_spend + salary_cost
@@ -137,7 +147,6 @@ with tab3:
     curr_u = units_sold
     
     for m in months:
-        # ---------- EXTRA 3: Growth Decay ----------
         decay = np.exp(-0.05*m)
         curr_u = curr_u * (1 + (monthly_growth_rate/100)*decay)
 
@@ -155,7 +164,6 @@ with tab3:
 with tab4:
     st.subheader("Valuation: Simplified DCF (Educational Model)")
     
-    # ---------- EXTRA 4: Company realism ----------
     if company_stage == "Idea":
         st.warning("Valuation not reliable for idea-stage companies.")
 
@@ -177,7 +185,6 @@ with tab4:
 
         st.metric("Estimated Valuation", f"${total_val:,.2f}")
 
-    # ---------- EXTRA 5: Assumptions ----------
     st.markdown("""
     ### Model Assumptions
     - Growth slows over time  

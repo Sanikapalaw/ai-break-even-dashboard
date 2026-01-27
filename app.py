@@ -40,6 +40,7 @@ with col_in2:
     units_sold = st.number_input("Current Units Sold", value=4000, step=100)
     marketing_spend = st.number_input("Marketing Spend ($)", value=1000.0, step=100.0)
     employee_count = st.number_input("Employee Count", value=15)
+    avg_salary = st.number_input("Average Salary per Employee ($/Month)", value=3000.0, step=500.0)
 
 with col_in3:
     st.subheader("🔮 Cash & Value")
@@ -75,13 +76,15 @@ company_stage = st.selectbox(
 )
 
 # ----------------- 2. CALCULATIONS -----------------
+salary_cost = employee_count * avg_salary
+
 total_revenue = units_sold * price_per_unit
 total_variable_cost = units_sold * variable_cost
-total_costs = fixed_costs + total_variable_cost + marketing_spend
+total_costs = fixed_costs + total_variable_cost + marketing_spend + salary_cost
 net_profit = total_revenue - total_costs
 
 if (price_per_unit - variable_cost) > 0:
-    break_even_units = (fixed_costs + marketing_spend) / (price_per_unit - variable_cost)
+    break_even_units = (fixed_costs + marketing_spend + salary_cost) / (price_per_unit - variable_cost)
 else:
     break_even_units = float('inf')
 
@@ -102,7 +105,7 @@ with tab1:
 
     units_range = np.linspace(0, units_sold*2, 100)
     rev_line = units_range * price_per_unit
-    cost_line = fixed_costs + marketing_spend + (units_range * variable_cost)
+    cost_line = fixed_costs + marketing_spend + salary_cost + (units_range * variable_cost)
 
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, name="Revenue"))
@@ -124,13 +127,12 @@ with tab1:
 
 # --- TAB 2: LIQUIDITY ---
 with tab2:
-    st.subheader("Liquidity")
+    st.subheader("Liquidity & Runway")
 
-    avg_salary = 3000
-    salary_cost = employee_count * avg_salary
     monthly_burn = fixed_costs + marketing_spend + salary_cost
     runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
 
+    st.metric("Salary Cost", f"${salary_cost:,.2f}")
     st.metric("Monthly Burn", f"${monthly_burn:,.2f}")
     st.metric("Runway (Months)", f"{runway_months:.1f}")
 
@@ -144,7 +146,7 @@ with tab3:
         decay = np.exp(-0.05*m)
         curr_u = curr_u * (1 + (monthly_growth_rate/100)*decay)
         r = curr_u * price_per_unit
-        c = fixed_costs + marketing_spend + (curr_u * variable_cost)
+        c = fixed_costs + marketing_spend + salary_cost + (curr_u * variable_cost)
         p = r - c
         proj_revenue.append(r)
         proj_profit.append(p)
@@ -179,6 +181,8 @@ with tab4:
             total_val = sum(pvs)+terminal_pv
 
             st.metric("Estimated Valuation (DCF)", f"${total_val:,.2f}")
+        else:
+            st.warning("Company is not profitable. DCF not meaningful.")
 
     st.markdown("""
     ### Disclaimer
@@ -198,6 +202,7 @@ with tab5:
 You are a startup CFO.
 Revenue: {total_revenue}
 Profit: {net_profit}
+Monthly Burn: {monthly_burn}
 Runway: {runway_months}
 Stage: {company_stage}
 Question: {user_q}
@@ -209,4 +214,3 @@ Give strategic advice.
         res = requests.post(url, json=payload)
         ans = res.json()['candidates'][0]['content']['parts'][0]['text']
         st.success(ans)
-

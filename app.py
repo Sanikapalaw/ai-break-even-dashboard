@@ -108,21 +108,15 @@ with tab1:
     fig.add_trace(go.Scatter(x=units_range, y=rev_line, name="Revenue"))
     fig.add_trace(go.Scatter(x=units_range, y=cost_line, name="Total Cost"))
 
-    # Current Status
     fig.add_trace(go.Scatter(
-        x=[units_sold], 
-        y=[total_revenue], 
-        mode="markers",
-        marker=dict(color="blue", size=14),
+        x=[units_sold], y=[total_revenue],
+        mode="markers", marker=dict(size=14),
         name="Current Status"
     ))
 
-    # Break-even point
     fig.add_trace(go.Scatter(
-        x=[break_even_units], 
-        y=[break_even_units*price_per_unit],
-        mode="markers",
-        marker=dict(size=12, color="orange"),
+        x=[break_even_units], y=[break_even_units*price_per_unit],
+        mode="markers", marker=dict(size=12),
         name="Break-even"
     ))
 
@@ -149,7 +143,6 @@ with tab3:
     for m in months:
         decay = np.exp(-0.05*m)
         curr_u = curr_u * (1 + (monthly_growth_rate/100)*decay)
-
         r = curr_u * price_per_unit
         c = fixed_costs + marketing_spend + (curr_u * variable_cost)
         p = r - c
@@ -162,35 +155,35 @@ with tab3:
 
 # --- TAB 4: VALUATION ---
 with tab4:
-    st.subheader("Valuation: Simplified DCF (Educational Model)")
-    
+    st.subheader("Valuation: Decision-Support Financial Model")
+
     if company_stage == "Idea":
-        st.warning("Valuation not reliable for idea-stage companies.")
+        st.info("Idea-stage companies do not have predictable cash flows. Showing heuristic valuation.")
+        vc_estimate = current_cash * 5
+        st.metric("Indicative Valuation (VC Heuristic)", f"${vc_estimate:,.2f}")
+    else:
+        annualized_profit = net_profit * 12
 
-    annualized_profit = net_profit * 12
+        if annualized_profit > 0:
+            years = [1,2,3,4,5]
+            pvs = []
+            cf = annualized_profit
+            for y in years:
+                cf *= (1 + annual_growth_rate)
+                pv = cf / ((1 + (discount_rate/100)) ** y)
+                pvs.append(pv)
 
-    if annualized_profit > 0:
-        years = [1,2,3,4,5]
-        pvs = []
-        cf = annualized_profit
-        for y in years:
-            cf *= (1 + annual_growth_rate)
-            pv = cf / ((1 + (discount_rate/100)) ** y)
-            pvs.append(pv)
+            terminal_growth = 0.03
+            terminal_val = (cf*(1+terminal_growth))/((discount_rate/100)-terminal_growth)
+            terminal_pv = terminal_val/((1+(discount_rate/100))**5)
+            total_val = sum(pvs)+terminal_pv
 
-        terminal_growth = 0.03
-        terminal_val = (cf*(1+terminal_growth))/((discount_rate/100)-terminal_growth)
-        terminal_pv = terminal_val/((1+(discount_rate/100))**5)
-        total_val = sum(pvs)+terminal_pv
-
-        st.metric("Estimated Valuation", f"${total_val:,.2f}")
+            st.metric("Estimated Valuation (DCF)", f"${total_val:,.2f}")
 
     st.markdown("""
-    ### Model Assumptions
-    - Growth slows over time  
-    - Employee cost affects burn  
-    - DCF only valid for mature companies  
-    - Educational financial model  
+    ### Disclaimer
+    This system provides **indicative financial insights for strategic planning only**.
+    It is not intended for real investment or funding decisions.
     """)
 
 # --- TAB 5: AI ADVISOR ---
@@ -202,7 +195,7 @@ with tab5:
             "contents":[{
                 "parts":[{
                     "text":f"""
-You are a CFO.
+You are a startup CFO.
 Revenue: {total_revenue}
 Profit: {net_profit}
 Runway: {runway_months}
@@ -216,3 +209,4 @@ Give strategic advice.
         res = requests.post(url, json=payload)
         ans = res.json()['candidates'][0]['content']['parts'][0]['text']
         st.success(ans)
+

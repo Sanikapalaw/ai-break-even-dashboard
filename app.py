@@ -5,137 +5,212 @@ import plotly.graph_objects as go
 import plotly.express as px
 import requests
 
-# ----------------- CONFIG & DATA -----------------
-st.set_page_config(layout="wide", page_title="AI CFO: Strategic Dashboard", page_icon="📉")
+# ----------------- CONFIG -----------------
+st.set_page_config(layout="wide", page_title="AI CFO: Ultimate Dashboard", page_icon="📈")
 
-# Grounding the model in your 5,000-row static dataset
-@st.cache_data
-def load_data():
-    df = pd.read_csv('BreakEvenDB.csv (3).csv')
-    return df
+# ----------------- TITLE -----------------
+st.title("📈 AI CFO: The Roadmap to Profitability")
+st.markdown("### Liquidity • Financial Modeling • Valuation • AI Insights")
+st.markdown("---")
 
+# ----------------- API KEY HANDLING -----------------
 try:
-    hist_df = load_data()
-    # Calculating averages to initialize the "Dynamic" part of the model
-    avg_price = hist_df['price_per_unit'].mean()
-    avg_var_cost = hist_df['variable_cost_per_unit'].mean()
-    avg_fixed = hist_df['fixed_costs'].mean()
-    avg_units = hist_df['units_sold'].mean()
-    avg_marketing = hist_df['marketing_spend'].mean()
-    avg_employees = hist_df['employee_count'].mean()
-except Exception as e:
-    st.error(f"Error loading CSV: {e}")
+    api_key = st.secrets["GEMINI_API_KEY"]
+except (FileNotFoundError, KeyError):
+    api_key = ""
+
+if not api_key:
+    st.error("🚨 **API Key Missing**")
+    st.info("Please add `GEMINI_API_KEY` to your secrets.toml file.")
     st.stop()
 
-# ----------------- TITLE & API -----------------
-st.title("📈 AI CFO: The Roadmap to Profitability")
-st.markdown(f"**Data Scientist Perspective:** Analyzing {len(hist_df):,} historical records to drive future strategy.")
+# ----------------- 1. UNIVERSAL INPUTS -----------------
+st.header("1. Enter Your Business Metrics")
 
-if "GEMINI_API_KEY" in st.secrets:
-    api_key = st.secrets["GEMINI_API_KEY"]
-else:
-    api_key = st.sidebar.text_input("Gemini API Key (Required for AI Advisor)", type="password")
+col_in1, col_in2, col_in3, col_in4 = st.columns(4)
 
-# ----------------- 1. STRATEGIC INPUTS (The Sliders) -----------------
-st.sidebar.header("🕹️ Strategy Levers")
-with st.sidebar:
-    company_stage = st.selectbox("Company Stage", ["Idea", "Early Startup", "Growth", "Mature"])
-    current_cash = st.number_input("Cash on Hand ($)", value=50000.0)
-    monthly_growth = st.slider("Target Monthly Growth (%)", 0.0, 20.0, 5.0)
+with col_in1:
+    st.subheader("💰 Costs & Pricing")
+    fixed_costs = st.number_input("Fixed Costs ($/Month)", value=25000.0, step=1000.0)
+    variable_cost = st.number_input("Variable Cost per Unit ($)", value=10.0, step=1.0)
+    price_per_unit = st.number_input("Price per Unit ($)", value=20.0, step=1.0)
 
-col1, col2 = st.columns(2)
+with col_in2:
+    st.subheader("📦 Operations")
+    units_sold = st.number_input("Current Units Sold", value=4000, step=100)
+    marketing_spend = st.number_input("Marketing Spend ($)", value=1000.0, step=100.0)
+    employee_count = st.number_input("Employee Count", value=15)
+    avg_salary = st.number_input("Average Salary per Employee ($/Month)", value=3000.0, step=500.0)
 
-with col1:
-    st.subheader("💰 Unit Economics (Future)")
-    price = st.number_input("Target Price per Unit ($)", value=float(avg_price))
-    v_cost = st.number_input("Target Variable Cost ($)", value=float(avg_var_cost))
-    volume = st.number_input("Target Sales Volume (Units)", value=int(avg_units))
+with col_in3:
+    st.subheader("🔮 Cash & Value")
+    current_cash = st.number_input("Cash on Hand ($)", value=50000.0, step=5000.0)
+    discount_rate = st.slider("Valuation Discount Rate (%)", 5, 20, 10)
 
-with col2:
-    st.subheader("🏢 Operating Structure")
-    fixed = st.number_input("Fixed Overheads ($/Mo)", value=float(avg_fixed))
-    marketing = st.number_input("Marketing Spend ($/Mo)", value=float(avg_marketing))
-    employees = st.number_input("Headcount", value=int(avg_employees))
-    salary = st.number_input("Avg Salary per Employee ($/Mo)", value=3000.0)
-
-# ----------------- 2. CORE CALCULATIONS -----------------
-total_salaries = employees * salary
-total_burn = fixed + marketing + total_salaries # Fixed Costs
-revenue = volume * price
-variable_total = volume * v_cost
-net_profit = revenue - (variable_total + total_burn) # EBITDA logic
-
-# Break-Even Formula
-contribution_margin = price - v_cost
-be_units = total_burn / contribution_margin if contribution_margin > 0 else 0
-
-# Liquidity Logic
-runway = current_cash / abs(net_profit) if net_profit < 0 else 99
-
-# ----------------- 3. EXECUTIVE TABS -----------------
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Performance & Liquidity", "📄 Dynamic P&L", "💰 Valuation", "🤖 AI Advisor"])
-
-# --- TAB 1: CHARTS ---
-with tab1:
-    st.subheader("Profitability & Runway Analysis")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Projected Net Profit", f"${net_profit:,.0f}")
-    m2.metric("Break-Even Volume", f"{be_units:,.0f} Units")
-    m3.metric("Monthly Burn", f"${total_burn:,.0f}")
-    m4.metric("Runway (Months)", f"{runway:.1f}", delta_color="inverse")
-
-    c_left, c_right = st.columns(2)
-
-    with c_left:
-        # Break-Even Chart
-        u_range = np.linspace(0, max(volume, be_units) * 1.5, 100)
-        fig_be = go.Figure()
-        fig_be.add_trace(go.Scatter(x=u_range, y=u_range * price, name="Revenue"))
-        fig_be.add_trace(go.Scatter(x=u_range, y=total_burn + (u_range * v_cost), name="Total Costs"))
-        fig_be.add_trace(go.Scatter(x=[volume], y=[revenue], name="Current Target", marker=dict(size=12, color="green")))
-        fig_be.update_layout(title="Break-Even Point Visualization", template="plotly_white")
-        st.plotly_chart(fig_be, use_container_width=True)
-
-    with c_right:
-        # Liquidity Runway Chart
-        timeline = list(range(13))
-        cash_flow = [max(0, current_cash + (net_profit * m)) for m in timeline]
-        fig_liq = px.area(x=timeline, y=cash_flow, title="Cash Depletion Forecast (12 Months)")
-        fig_liq.add_hline(y=0, line_dash="dash", line_color="red")
-        st.plotly_chart(fig_liq, use_container_width=True)
-
-# --- TAB 2: P&L (The Dynamic Logic) ---
-with tab2:
-    st.subheader("Dynamic Pro-Forma P&L Statement")
-    st.write("This statement recalculates instantly as you move the sliders.")
-    pl_df = pd.DataFrame({
-        "Line Item": ["Total Revenue", "Less: Variable Costs", "Gross Margin", "Operating Expenses", "Net Income"],
-        "Amount ($)": [f"{revenue:,.2f}", f"({variable_total:,.2f})", f"{revenue - variable_total:,.2f}", f"({total_burn:,.2f})", f"{net_profit:,.2f}"]
-    })
-    st.table(pl_df)
-
-# --- TAB 3: VALUATION ---
-with tab3:
-    st.subheader("Strategic Business Valuation")
-    if company_stage == "Idea":
-        val = current_cash * 5
-        method = "VC Heuristic"
-    elif net_profit <= 0:
-        val = (revenue * 12) * 3 # 3x Revenue Multiple for non-profitable
-        method = "Revenue Multiple (Growth Stage)"
-    else:
-        # Discounted Cash Flow
-        val = (net_profit * 12) / 0.15 
-        method = "Discounted Cash Flow (DCF)"
+with col_in4:
+    st.subheader("🚀 Growth & Time")
+    growth_mode = st.radio("Growth Rate Mode:", ["Monthly %", "Annual %"], horizontal=True)
     
-    st.metric(f"Estimated Valuation ({method})", f"${val:,.2f}")
+    if growth_mode == "Monthly %":
+        raw_growth = st.slider("Monthly Growth (%)", 0.0, 20.0, 5.0, step=0.5)
+        monthly_growth_rate = raw_growth
+        annual_growth_rate = ((1 + (raw_growth/100)) ** 12) - 1
+    else:
+        raw_growth = st.slider("Annual Growth (%)", 0.0, 200.0, 80.0, step=5.0)
+        annual_growth_rate = raw_growth / 100
+        monthly_growth_rate = ((1 + annual_growth_rate) ** (1/12) - 1) * 100
 
-# --- TAB 4: AI ADVISOR ---
+    horizon_options = {
+        "6 Months": 6,
+        "12 Months": 12, 
+        "24 Months": 24, 
+        "60 Months": 60
+    }
+    selected_horizon = st.selectbox("Chart Timeline", list(horizon_options.keys()), index=1)
+    forecast_months = horizon_options[selected_horizon]
+
+# ---------- Company Stage ----------
+company_stage = st.selectbox(
+    "Company Stage",
+    ["Idea", "Early Startup", "Growth", "Mature"]
+)
+
+# ----------------- 2. CALCULATIONS -----------------
+salary_cost = employee_count * avg_salary
+
+total_revenue = units_sold * price_per_unit
+total_variable_cost = units_sold * variable_cost
+total_costs = fixed_costs + total_variable_cost + marketing_spend + salary_cost
+net_profit = total_revenue - total_costs
+
+if (price_per_unit - variable_cost) > 0:
+    break_even_units = (fixed_costs + marketing_spend + salary_cost) / (price_per_unit - variable_cost)
+else:
+    break_even_units = float('inf')
+
+# ----------------- 3. TABS -----------------
+st.markdown("---")
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "📊 Break-Even", "💧 Liquidity", "📈 Modeling", "💰 Valuation", "🤖 AI Advisor"
+])
+
+# --- TAB 1: BREAK-EVEN ---
+with tab1:
+    st.subheader("Snapshot: Current Performance")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Total Revenue", f"${total_revenue:,.2f}")
+    c2.metric("Total Costs", f"${total_costs:,.2f}")
+    c3.metric("Net Profit", f"${net_profit:,.2f}")
+    c4.metric("Break-Even Units", f"{break_even_units:,.0f}")
+
+    units_range = np.linspace(0, units_sold*2, 100)
+    rev_line = units_range * price_per_unit
+    cost_line = fixed_costs + marketing_spend + salary_cost + (units_range * variable_cost)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=units_range, y=rev_line, name="Revenue"))
+    fig.add_trace(go.Scatter(x=units_range, y=cost_line, name="Total Cost"))
+
+    fig.add_trace(go.Scatter(
+        x=[units_sold], y=[total_revenue],
+        mode="markers", marker=dict(size=14),
+        name="Current Status"
+    ))
+
+    fig.add_trace(go.Scatter(
+        x=[break_even_units], y=[break_even_units*price_per_unit],
+        mode="markers", marker=dict(size=12),
+        name="Break-even"
+    ))
+
+    st.plotly_chart(fig, use_container_width=True)
+
+# --- TAB 2: LIQUIDITY ---
+with tab2:
+    st.subheader("Liquidity & Runway")
+
+    monthly_burn = fixed_costs + marketing_spend + salary_cost
+    runway_months = current_cash / monthly_burn if monthly_burn > 0 else 0
+
+    st.metric("Salary Cost", f"${salary_cost:,.2f}")
+    st.metric("Monthly Burn", f"${monthly_burn:,.2f}")
+    st.metric("Runway (Months)", f"{runway_months:.1f}")
+
+# --- TAB 3: PROJECTIONS ---
+with tab3:
+    months = list(range(1, forecast_months + 1))
+    proj_revenue, proj_profit = [], []
+    curr_u = units_sold
+    
+    for m in months:
+        decay = np.exp(-0.05*m)
+        curr_u = curr_u * (1 + (monthly_growth_rate/100)*decay)
+        r = curr_u * price_per_unit
+        c = fixed_costs + marketing_spend + salary_cost + (curr_u * variable_cost)
+        p = r - c
+        proj_revenue.append(r)
+        proj_profit.append(p)
+        
+    df_proj = pd.DataFrame({"Month": months, "Revenue": proj_revenue, "Profit": proj_profit})
+    fig_proj = px.line(df_proj, x="Month", y=["Revenue", "Profit"], markers=True)
+    st.plotly_chart(fig_proj, use_container_width=True)
+
+# --- TAB 4: VALUATION ---
 with tab4:
-    if st.button("Generate Executive Analysis"):
-        if not api_key: st.error("Add API Key")
+    st.subheader("Valuation: Decision-Support Financial Model")
+
+    if company_stage == "Idea":
+        st.info("Idea-stage companies do not have predictable cash flows. Showing heuristic valuation.")
+        vc_estimate = current_cash * 5
+        st.metric("Indicative Valuation (VC Heuristic)", f"${vc_estimate:,.2f}")
+    else:
+        annualized_profit = net_profit * 12
+
+        if annualized_profit > 0:
+            years = [1,2,3,4,5]
+            pvs = []
+            cf = annualized_profit
+            for y in years:
+                cf *= (1 + annual_growth_rate)
+                pv = cf / ((1 + (discount_rate/100)) ** y)
+                pvs.append(pv)
+
+            terminal_growth = 0.03
+            terminal_val = (cf*(1+terminal_growth))/((discount_rate/100)-terminal_growth)
+            terminal_pv = terminal_val/((1+(discount_rate/100))**5)
+            total_val = sum(pvs)+terminal_pv
+
+            st.metric("Estimated Valuation (DCF)", f"${total_val:,.2f}")
         else:
-            prompt = f"CFO Analysis: Stage {company_stage}, Revenue {revenue}, Profit {net_profit}, Runway {runway}. Give 3 CEO-level strategies."
-            res = requests.post(f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}", 
-                                json={"contents":[{"parts":[{"text": prompt}]}]})
-            st.success(res.json()['candidates'][0]['content']['parts'][0]['text'])
+            st.warning("Company is not profitable. DCF not meaningful.")
+
+    st.markdown("""
+    ### Disclaimer
+    This system provides **indicative financial insights for strategic planning only**.
+    It is not intended for real investment or funding decisions.
+    """)
+
+# --- TAB 5: AI ADVISOR ---
+with tab5:
+    user_q = st.text_input("Ask CFO:", "How can I improve profitability?")
+    if st.button("Get Answer"):
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+        payload = {
+            "contents":[{
+                "parts":[{
+                    "text":f"""
+You are a startup CFO.
+Revenue: {total_revenue}
+Profit: {net_profit}
+Monthly Burn: {monthly_burn}
+Runway: {runway_months}
+Stage: {company_stage}
+Question: {user_q}
+Give strategic advice.
+"""
+                }]
+            }]
+        }
+        res = requests.post(url, json=payload)
+        ans = res.json()['candidates'][0]['content']['parts'][0]['text']
+        st.success(ans)

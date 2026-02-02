@@ -10,7 +10,7 @@ st.set_page_config(layout="wide", page_title="AI CFO: Strategic Simulator", page
 
 # ----------------- TITLE -----------------
 st.title("📈 AI CFO: The Roadmap to Profitability")
-st.markdown("### Adaptive Valuation • Strategic Simulation • Liquidity")
+st.markdown("### Strategic Simulation Engine • Liquidity • Adaptive Valuation")
 st.markdown("---")
 
 # ----------------- API KEY HANDLING -----------------
@@ -21,9 +21,9 @@ if not api_key:
 # ----------------- 1. STRATEGIC INPUTS (Sidebar) -----------------
 st.sidebar.header("🕹️ Strategy & Timeline")
 with st.sidebar:
-    # This input drives the valuation logic below
     company_stage = st.selectbox("Company Stage", ["Idea", "Early Startup", "Growth", "Mature"])
     
+    # TIMELINE INPUT: This controls the "Modeling" and "Liquidity" graphs
     horizon_options = {"6 Months": 6, "12 Months": 12, "24 Months": 24, "60 Months": 60}
     selected_horizon = st.selectbox("Projection Timeline", list(horizon_options.keys()), index=1)
     forecast_months = horizon_options[selected_horizon]
@@ -47,63 +47,106 @@ with col_in2:
     salary = st.number_input("Avg Salary per Employee ($)", value=3000.0)
 
 # ----------------- 3. CORE CALCULATIONS -----------------
-monthly_salaries = employees * salary
-total_fixed_burn = fixed_overhead + marketing + monthly_salaries
+total_salaries = employees * salary
+total_fixed_burn = fixed_overhead + marketing + total_salaries
 revenue = units * price
-net_profit = revenue - (total_fixed_burn + (units * v_cost))
+variable_total = units * v_cost
+total_costs = total_fixed_burn + variable_total
+net_profit = revenue - total_costs
+
+# Contribution Margin and Break-even logic
+contribution_margin = price - v_cost
+be_units = total_fixed_burn / contribution_margin if contribution_margin > 0 else 0
+
+# Liquidity/Runway calculation
 runway = current_cash / abs(net_profit) if net_profit < 0 else float('inf')
 
-# ----------------- 4. THE ADAPTIVE VALUATION LOGIC -----------------
-# This section fulfills your request to have different methods for different stages
-if company_stage == "Idea":
-    # Logic: Ideas are valued on 'Potential' not math.
-    valuation = current_cash * 5 
-    v_method = "VC Heuristic (Idea Stage)"
-    v_description = "Since there is no revenue, we value the concept based on the current capital and potential."
+# ----------------- 4. EXECUTIVE TABS -----------------
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Performance & Liquidity", "📈 Financial Modeling", "💰 Strategic Valuation", "🤖 AI Advisor"])
 
-elif company_stage == "Early Startup":
-    # Logic: Startups are valued on 'Revenue Multiples'.
-    valuation = (revenue * 12) * 2 
-    v_method = "Revenue Multiple (2x Annualized)"
-    v_description = "Valuation is based on the top-line revenue growth potential of a new venture."
-
-elif company_stage == "Growth":
-    # Logic: Growth companies get a higher multiple because they have traction.
-    valuation = (revenue * 12) * 5 
-    v_method = "Growth Multiple (5x Annualized)"
-    v_description = "A higher revenue multiple is applied here to reflect proven market traction."
-
-else: # Mature
-    if net_profit > 0:
-        # Logic: Mature profitable companies use DCF (Discounted Cash Flow).
-        valuation = (net_profit * 12) / 0.15 
-        v_method = "DCF Model (Discount Rate: 15%)"
-        v_description = "Valuation based on the present value of future cash flows."
-    else:
-        # Logic: If Mature but losing money, we revert to Asset value or Revenue Multiple.
-        valuation = (revenue * 12) * 1.5
-        v_method = "Asset/Revenue Recovery Multiple"
-        v_description = "A conservative multiple is used because the company is mature but pre-profit."
-
-# ----------------- 5. EXECUTIVE TABS -----------------
-tab1, tab2, tab3 = st.tabs(["📊 Performance", "💰 Strategic Valuation", "🤖 AI Advisor"])
-
+# --- TAB 1: PERFORMANCE & LIQUIDITY ---
 with tab1:
-    st.subheader("Financial Health metrics")
-    m1, m2, m3 = st.columns(3)
-    m1.metric("Projected Profit", f"${net_profit:,.0f}")
-    m2.metric("Monthly Burn", f"${total_fixed_burn:,.0f}")
-    m3.metric("Runway", f"{runway:.1f} Mo" if runway != float('inf') else "Stable")
+    st.subheader("Current Solvency & Efficiency")
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Net Profit", f"${net_profit:,.0f}")
+    m2.metric("Break-Even Volume", f"{be_units:,.0f} Units")
+    m3.metric("Monthly Burn", f"${total_fixed_burn:,.0f}")
+    m4.metric("Runway", f"{runway:.1f} Mo" if runway != float('inf') else "Stable")
+
+    col_be, col_liq = st.columns(2)
     
-    # Insert your Break-Even and Liquidity charts here...
+    with col_be:
+        st.write("**Break-Even Visualization**")
+        u_range = np.linspace(0, max(units, be_units)*1.5, 100)
+        fig_be = go.Figure()
+        fig_be.add_trace(go.Scatter(x=u_range, y=u_range*price, name="Revenue", line=dict(color='blue')))
+        fig_be.add_trace(go.Scatter(x=u_range, y=total_fixed_burn + (u_range*v_cost), name="Total Costs", line=dict(color='red')))
+        fig_be.add_trace(go.Scatter(x=[units], y=[revenue], name="Current Status", marker=dict(size=12, color="green")))
+        fig_be.update_layout(template="plotly_white", margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_be, use_container_width=True)
 
+    with col_liq:
+        st.write("**Liquidity / Cash Exhaustion**")
+        # LIQUIDITY GRAPH logic
+        timeline = list(range(forecast_months + 1))
+        cash_vals = [max(0, current_cash + (net_profit * m)) for m in timeline]
+        fig_liq = px.area(x=timeline, y=cash_vals, labels={'x': 'Months', 'y': 'Cash ($)'})
+        fig_liq.add_hline(y=0, line_dash="dash", line_color="red")
+        fig_liq.update_layout(template="plotly_white", margin=dict(l=0, r=0, t=30, b=0))
+        st.plotly_chart(fig_liq, use_container_width=True)
+
+# --- TAB 2: FINANCIAL MODELING (Projections) ---
 with tab2:
-    st.header(f"Method: {v_method}")
-    st.metric("Estimated Enterprise Value", f"${valuation:,.2f}")
-    st.markdown(f"**Professor's Note:** {v_description}")
-    st.info(f"As a {company_stage} company, this is the industry-standard valuation approach.")
+    st.subheader(f"{selected_horizon} Growth Projection")
+    # MODELING GRAPH logic: Shows the future trend of Revenue vs Profit
+    months = list(range(1, forecast_months + 1))
+    p_rev, p_prof = [], []
+    curr_u = units
+    for m in months:
+        curr_u *= (1 + growth_rate/100)
+        r = curr_u * price
+        c = total_fixed_burn + (curr_u * v_cost)
+        p_rev.append(r)
+        p_prof.append(r - c)
+    
+    df_p = pd.DataFrame({"Month": months, "Revenue": p_rev, "Profit": p_prof})
+    fig_modeling = px.line(df_p, x="Month", y=["Revenue", "Profit"], markers=True, 
+                           title="Revenue and Profit Forecasted Path")
+    fig_modeling.update_layout(template="plotly_white")
+    st.plotly_chart(fig_modeling, use_container_width=True)
 
+# --- TAB 3: STRATEGIC VALUATION (Different Stages) ---
 with tab3:
-    if st.button("Generate Briefing"):
-        # AI Advisor logic here...
-        st.success("Analysis Complete.")
+    st.subheader("Valuation Methodology")
+    
+    if company_stage == "Idea":
+        val_method, valuation = "VC Heuristic", current_cash * 5
+        desc = "Based on seed-stage potential and cash-on-hand multiplier."
+    elif company_stage == "Early Startup":
+        val_method, valuation = "Revenue Multiple (2x)", (revenue * 12) * 2
+        desc = "Standard early-stage multiple reflecting rapid growth potential."
+    elif company_stage == "Growth":
+        val_method, valuation = "Growth Multiple (5x)", (revenue * 12) * 5
+        desc = "High-traction multiple based on established market presence."
+    else: # Mature
+        if net_profit > 0:
+            val_method, valuation = "DCF Model", (net_profit * 12) / 0.15 
+            desc = "Calculated using the present value of future cash flows at 15% Cap Rate."
+        else:
+            val_method, valuation = "Asset Recovery Multiple", (revenue * 12) * 1.5
+            desc = "Conservative multiple for a mature pre-profit enterprise."
+
+    st.metric(f"Valuation: {val_method}", f"${valuation:,.2f}")
+    st.info(f"**Strategic Context:** {desc}")
+
+# --- TAB 4: AI ADVISOR ---
+with tab4:
+    if st.button("Generate Executive Analysis"):
+        if api_key:
+            prompt = f"PhD CFO Analysis: Stage {company_stage}, Profit {net_profit}, Runway {runway}. Give 3 strategic recommendations."
+            try:
+                url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+                res = requests.post(url, json={"contents":[{"parts":[{"text": prompt}]}]})
+                st.success(res.json()['candidates'][0]['content']['parts'][0]['text'])
+            except:
+                st.error("AI service error.")

@@ -127,30 +127,33 @@ with tab3:
     st.plotly_chart(fig, use_container_width=True)
 
 # ---- TAB 4 ----
+# ---- TAB 4: STAGE-BASED VALUATION ----
 with tab4:
-    st.subheader("Valuation")
+    st.subheader("Stage-Based Valuation")
 
     if company_stage == "Idea":
-        st.metric("VC Heuristic", f"${current_cash * 5:,.0f}")
-    elif net_profit > 0:
-        annual_profit = net_profit * 12
-        years = [1,2,3,4,5]
-        pvs = []
-        cf = annual_profit
+        valuation = current_cash * 5
+        method = "VC Heuristic (Cash × 5)"
 
-        for y in years:
-            cf *= (1 + annual_growth_rate)
-            pv = cf / ((1 + discount_rate/100)**y)
-            pvs.append(pv)
+    elif company_stage == "Early Startup":
+        valuation = (total_revenue * 12) * 2
+        method = "Revenue Multiple (2× ARR)"
 
-        terminal_growth = 0.03
-        terminal_val = (cf*(1+terminal_growth))/((discount_rate/100)-terminal_growth)
-        terminal_pv = terminal_val/((1+discount_rate/100)**5)
+    elif company_stage == "Growth":
+        valuation = (total_revenue * 12) * 5
+        method = "Growth Multiple (5× ARR)"
 
-        total_val = sum(pvs) + terminal_pv
-        st.metric("DCF Valuation", f"${total_val:,.0f}")
-    else:
-        st.warning("Company not profitable. DCF not meaningful.")
+    else:  # Mature
+        if net_profit > 0:
+            valuation = (net_profit * 12) / (discount_rate / 100)
+            method = "DCF Proxy (Profit / Discount Rate)"
+        else:
+            valuation = 0
+            method = "Not Profitable – DCF Not Valid"
+
+    st.metric(f"Valuation – {method}", f"${valuation:,.0f}")
+    st.info("Valuation method adapts based on the company lifecycle stage.")
+
 
 # ---- TAB 5 ----
 with tab5:
@@ -169,3 +172,4 @@ with tab5:
         res = requests.post(url, json={"contents":[{"parts":[{"text":prompt}]}]})
         ans = res.json()["candidates"][0]["content"]["parts"][0]["text"]
         st.success(ans)
+
